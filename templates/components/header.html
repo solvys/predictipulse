@@ -1,0 +1,54 @@
+<header class="top-header">
+  <div class="header-left">
+    <div class="logo">Predictipulse</div>
+  </div>
+</header>
+
+<!-- P&L Chart -->
+<div class="pnl-chart-container">
+  <div class="pnl-chart-header">
+    <div class="pnl-chart-title">
+      <span class="chart-label">CUMULATIVE P&L</span>
+      <span id="chart-pnl-value" class="chart-value pnl-positive">$+0.00</span>
+    </div>
+    <div class="pnl-chart-period">
+      <button class="period-btn active" data-period="day">24h</button>
+      <button class="period-btn" data-period="week">7d</button>
+    </div>
+  </div>
+  <div class="pnl-chart-wrapper">
+    <canvas id="pnl-chart"></canvas>
+  </div>
+</div>
+
+<div class="platform-tickers single">
+  <div class="ticker-card" id="ticker-kalshi">
+    <div class="ticker-header">
+      <div class="ticker-header-row">
+        <span class="ticker-name">Kalshi Tracker</span>
+        <span id="uplink-status-pill" class="ticker-tag status-pill">Uplink Status</span>
+        <button id="kalshi-uplink-btn" class="uplink-btn-header">Uplink</button>
+      </div>
+      <div class="uplink-error-row">
+        <span id="uplink-error-msg" class="uplink-error-msg"></span>
+      </div>
+    </div>
+    <div class="ticker-body">
+      <div class="ticker-stat">
+        <span class="ticker-label">STATUS</span>
+        <span id="kalshi-status" class="status-indicator {{ 'status-on' if running else 'status-off' }}">
+          {{ "PRINTIN'" if running else 'Inactive' }}
+        </span>
+      </div>
+      <div class="ticker-stat">
+        <span class="ticker-label">BALANCE</span>
+        <span id="kalshi-bankroll" class="ticker-value">${{ '%.2f' | format(stats.bankroll) }}</span>
+      </div>
+      <div class="ticker-actions">
+        <button id="kalshi-start-btn" class="ticker-btn {{ 'engine-active' if running else '' }}">
+          {{ 'Stop' if running else 'Start' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

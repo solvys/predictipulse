@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Predictipulse — Kalshi Sports Betting Bot</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-tertiary: #1a1a25;
+            --accent-cyan: #00d4ff;
+            --accent-lime: #b8ff57;
+            --accent-magenta: #ff2e97;
+            --accent-orange: #ff6b35;
+            --text-primary: #f0f0f5;
+            --text-secondary: #8888a0;
+            --border-color: #2a2a3a;
+            --glow-cyan: 0 0 30px rgba(0, 212, 255, 0.3);
+            --glow-lime: 0 0 30px rgba(184, 255, 87, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated background */
+        .bg-grid {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-glow {
+            position: fixed;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            filter: blur(150px);
+            opacity: 0.15;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-glow-1 {
+            background: var(--accent-cyan);
+            top: -200px;
+            right: -200px;
+            animation: pulse 8s ease-in-out infinite;
+        }
+
+        .bg-glow-2 {
+            background: var(--accent-magenta);
+            bottom: -200px;
+            left: -200px;
+            animation: pulse 8s ease-in-out infinite reverse;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.1; transform: scale(1); }
+            50% { opacity: 0.2; transform: scale(1.1); }
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .logo {
+            font-family: 'Instrument Serif', serif;
+            font-size: 4.5rem;
+            font-weight: 400;
+            background: linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-lime) 50%, var(--accent-magenta) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+            letter-spacing: -2px;
+        }
+
+        .tagline {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        /* Navigation tabs */
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 50px;
+        }
+
+        .tab {
+            padding: 12px 28px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+        }
+
+        .tab:hover {
+            border-color: var(--accent-cyan);
+            color: var(--text-primary);
+        }
+
+        .tab.active {
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.15), rgba(184, 255, 87, 0.1));
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+            box-shadow: var(--glow-cyan);
+        }
+
+        /* Panel styles */
+        .panel {
+            display: none;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Mermaid chart container */
+        .chart-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 40px;
+            overflow-x: auto;
+        }
+
+        .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+
+        /* Flow cards */
+        .flow-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            margin-top: 30px;
+        }
+
+        .flow-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 28px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .flow-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-lime));
+        }
+
+        .flow-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent-cyan);
+            box-shadow: var(--glow-cyan);
+        }
+
+        .flow-card.pinnacle::before {
+            background: linear-gradient(90deg, var(--accent-orange), var(--accent-magenta));
+        }
+
+        .flow-card.polymarket::before {
+            background: linear-gradient(90deg, var(--accent-lime), var(--accent-cyan));
+        }
+
+        .flow-card.kelly::before {
+            background: linear-gradient(90deg, var(--accent-magenta), var(--accent-cyan));
+        }
+
+        .flow-card.execute::before {
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-lime));
+        }
+
+        .flow-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 16px;
+            background: var(--bg-tertiary);
+        }
+
+        .flow-card h3 {
+            font-size: 1.1rem;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+        }
+
+        .flow-card p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* Key functions panel */
+        .functions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .function-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .function-card:hover {
+            border-color: var(--accent-lime);
+        }
+
+        .function-name {
+            font-size: 0.9rem;
+            color: var(--accent-lime);
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .function-desc {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* Parameters panel */
+        .params-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .params-table th,
+        .params-table td {
+            padding: 16px 20px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .params-table th {
+            background: var(--bg-tertiary);
+            color: var(--accent-cyan);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .params-table td {
+            font-size: 0.85rem;
+        }
+
+        .params-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .param-name {
+            color: var(--accent-lime);
+            font-weight: 600;
+        }
+
+        .param-value {
+            color: var(--accent-magenta);
+        }
+
+        /* Stats section */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-lime));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Formula section */
+        .formula-box {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            margin: 20px 0;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .formula-title {
+            color: var(--accent-cyan);
+            font-size: 0.85rem;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .formula {
+            font-size: 1rem;
+            color: var(--accent-lime);
+            line-height: 1.8;
+        }
+
+        /* Architecture flow */
+        .arch-flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 20px 0;
+        }
+
+        .arch-step {
+            background: var(--bg-tertiary);
+            border: 2px solid var(--step-color, var(--accent-cyan));
+            border-radius: 12px;
+            padding: 16px 20px;
+            text-align: center;
+            min-width: 100px;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .arch-step:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0, 212, 255, 0.2);
+        }
+
+        .arch-num {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--step-color, var(--accent-cyan));
+            color: var(--bg-primary);
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            font-size: 0.75rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .arch-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .arch-desc {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+        }
+
+        .arch-arrow {
+            color: var(--accent-cyan);
+            font-size: 1.5rem;
+            opacity: 0.6;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .logo {
+                font-size: 3rem;
+            }
+            
+            .stats-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .tabs {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+
+    <div class="container">
+        <header>
+            <h1 class="logo">Predictipulse</h1>
+            <p class="tagline">Automated Sports Betting on Kalshi</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab active" data-panel="overview">Overview</button>
+            <button class="tab" data-panel="architecture">Architecture</button>
+            <button class="tab" data-panel="functions">Key Functions</button>
+            <button class="tab" data-panel="parameters">Parameters</button>
+        </div>
+
+        <!-- Overview Panel -->
+        <div class="panel active" id="overview">
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-value">3</div>
+                    <div class="stat-label">Sports Supported</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">2</div>
+                    <div class="stat-label">Data Sources</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">FOK</div>
+                    <div class="stat-label">Order Type</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">Kelly</div>
+                    <div class="stat-label">Bet Sizing</div>
+                </div>
+            </div>
+
+            <div class="flow-section">
+                <div class="flow-card pinnacle">
+                    <div class="flow-icon">📊</div>
+                    <h3>1. Pinnacle Data Pull</h3>
+                    <p>Fetches sharp odds from Pinnacle via RapidAPI. These odds represent the "true" market probability after removing the house edge (vig).</p>
+                </div>
+                <div class="flow-card polymarket">
+                    <div class="flow-icon">🎯</div>
+                    <h3>2. Polymarket Data Pull</h3>
+                    <p>Queries Polymarket's Gamma API for current market prices on sports events. Compares peer-to-peer prediction market odds.</p>
+                </div>
+                <div class="flow-card kelly">
+                    <div class="flow-icon">🧮</div>
+                    <h3>3. EV & Kelly Calculation</h3>
+                    <p>Calculates expected value by comparing true probabilities. Uses Kelly Criterion with adjustable multiplier for optimal bet sizing.</p>
+                </div>
+                <div class="flow-card execute">
+                    <div class="flow-icon">⚡</div>
+                    <h3>4. Trade Execution</h3>
+                    <p>Executes Fill-or-Kill (FOK) orders when opportunities meet the target EV threshold. Supports both BUY and SELL operations.</p>
+                </div>
+            </div>
+
+            <div class="formula-box">
+                <div class="formula-title">Kelly Criterion Formula</div>
+                <div class="formula">
+                    f* = (p × (odds - 1) - (1 - p)) / (odds - 1)<br><br>
+                    <span style="color: var(--text-secondary);">where p = true probability, odds = polymarket decimal odds</span>
+                </div>
+            </div>
+
+            <div class="formula-box">
+                <div class="formula-title">Expected Value Formula</div>
+                <div class="formula">
+                    EV = ((true_probability × polymarket_odds) - 1) × 100%<br><br>
+                    <span style="color: var(--text-secondary);">Positive EV indicates a profitable betting opportunity</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Architecture Panel -->
+        <div class="panel" id="architecture">
+            <div class="chart-container">
+                <h3 style="color: var(--accent-cyan); margin-bottom: 20px; font-size: 1rem;">System Architecture</h3>
+                <div class="arch-flow">
+                    <div class="arch-step" style="--step-color: #00d4ff">
+                        <div class="arch-num">1</div>
+                        <div class="arch-label">Pinnacle API</div>
+                        <div class="arch-desc">Sharp Odds</div>
+                    </div>
+                    <div class="arch-arrow">→</div>
+                    <div class="arch-step" style="--step-color: #b8ff57">
+                        <div class="arch-num">2</div>
+                        <div class="arch-label">Merge Data</div>
+                        <div class="arch-desc">+ Polymarket</div>
+                    </div>
+                    <div class="arch-arrow">→</div>
+                    <div class="arch-step" style="--step-color: #b8ff57">
+                        <div class="arch-num">3</div>
+                        <div class="arch-label">Remove Vig</div>
+                        <div class="arch-desc">True Odds</div>
+                    </div>
+                    <div class="arch-arrow">→</div>
+                    <div class="arch-step" style="--step-color: #ff2e97">
+                        <div class="arch-num">4</div>
+                        <div class="arch-label">Calculate EV</div>
+                        <div class="arch-desc">Find Edge</div>
+                    </div>
+                    <div class="arch-arrow">→</div>
+                    <div class="arch-step" style="--step-color: #ff2e97">
+                        <div class="arch-num">5</div>
+                        <div class="arch-label">Kelly Sizing</div>
+                        <div class="arch-desc">Optimal Bet</div>
+                    </div>
+                    <div class="arch-arrow">→</div>
+                    <div class="arch-step" style="--step-color: #ff6b35">
+                        <div class="arch-num">6</div>
+                        <div class="arch-label">Decision</div>
+                        <div class="arch-desc">Buy/Sell?</div>
+                    </div>
+                    <div class="arch-arrow">→</div>
+                    <div class="arch-step" style="--step-color: #00d4ff">
+                        <div class="arch-num">7</div>
+                        <div class="arch-label">FOK Order</div>
+                        <div class="arch-desc">Execute</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-container" style="margin-top: 30px;">
+                <h3 style="color: var(--accent-cyan); margin-bottom: 20px; font-size: 1rem;">Data Flow Sequence</h3>
+                <pre class="mermaid">sequenceDiagram
+autonumber
+participant Bot as Predictipulse
+participant PIN as Pinnacle
+participant POLY as Polymarket
+participant CHAIN as Polygon
+loop Every Cycle
+    Bot->>PIN: Fetch Sharp Odds
+    PIN-->>Bot: Decimal Odds + Event Data
+    Bot->>Bot: Remove Vig
+    Bot->>POLY: Fetch Market Prices
+    POLY-->>Bot: Buy/Sell Prices + Tokens
+    Bot->>Bot: Compare and Calculate EV
+    Bot->>Bot: Kelly Criterion Sizing
+    alt Positive EV Found
+        Bot->>POLY: Get Balance and Portfolio
+        POLY-->>Bot: Current Holdings
+        Bot->>Bot: Calculate Amount to Trade
+        Bot->>CHAIN: Sign Transaction
+        Bot->>POLY: Submit FOK Order
+        POLY-->>Bot: Order Result
+    end
+    Bot->>Bot: Wait for Next Cycle
+end</pre>
+            </div>
+        </div>
+
+        <!-- Functions Panel -->
+        <div class="panel" id="functions">
+            <div class="functions-grid">
+                <div class="function-card">
+                    <div class="function-name">pipeline_trading()</div>
+                    <div class="function-desc">Main orchestrator that connects data fetching, modeling, bet-sizing, and execution into a seamless trading pipeline.</div>
+                </div>
+                <div class="function-card">
+                    <div class="function-name">pull_from_pinnacle()</div>
+                    <div class="function-desc">Fetches and processes market lines from Pinnacle to serve as the "true odds" benchmark for comparison.</div>
+                </div>
+                <div class="function-card">
+                    <div class="function-name">pull_from_polymarket_events_api()</div>
+                    <div class="function-desc">Queries Polymarket's Gamma API for sports events and market data for the specified week.</div>
+                </div>
+                <div class="function-card">
+                    <div class="function-name">calc_true_odds()</div>
+                    <div class="function-desc">Removes the vig/juice from Pinnacle odds by normalizing implied probabilities to sum to 100%.</div>
+                </div>
+                <div class="function-card">
+                    <div class="function-name">merge_and_process_data()</div>
+                    <div class="function-desc">Cleans and merges data from Pinnacle and Polymarket, matching games by date and team names.</div>
+                </div>
+                <div class="function-card">
+                    <div class="function-name">calc_expected_value()</div>
+                    <div class="function-desc">Calculates EV as ((true_prob × poly_odds) - 1) × 100 to identify profitable opportunities.</div>
+                </div>
+                <div class="function-card">
+                    <div class="function-name">calc_kelly_optimal_and_adjusted_bet_size()</div>
+                    <div class="function-desc">Determines optimal bet sizes using Kelly Criterion with configurable risk multiplier.</div>
+                </div>
+                <div class="function-card">
+                    <div class="function-name">calc_target_variables()</div>
+                    <div class="function-desc">Computes buy/sell targets based on true probability and target EV thresholds.</div>
+                </div>
+                <div class="function-card">
+                    <div class="function-name">strategy_v1()</div>
+                    <div class="function-desc">Primary strategy function that processes Polymarket events and extracts trading data.</div>
+                </div>
+                <div class="function-card">
+                    <div class="function-name">strategy_v1_stage_2()</div>
+                    <div class="function-desc">Fetches live BUY/SELL prices for tokens from Polymarket's CLOB client.</div>
+                </div>
+                <div class="function-card">
+                    <div class="function-name">buying_shares()</div>
+                    <div class="function-desc">Executes buy orders when polymarket_probability_to_buy < buy_target within trading hours.</div>
+                </div>
+                <div class="function-card">
+                    <div class="function-name">selling_stocks()</div>
+                    <div class="function-desc">Executes sell orders when polymarket_probability_to_sell >= sell_target within trading hours.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Parameters Panel -->
+        <div class="panel" id="parameters">
+            <table class="params-table">
+                <thead>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Current Value</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="param-name">SCRIPT_MODES</td>
+                        <td class="param-value">["NBA", "NFL", "NHL"]</td>
+                        <td>Sports leagues to scan for opportunities</td>
+                    </tr>
+                    <tr>
+                        <td class="param-name">kelly_multiplier</td>
+                        <td class="param-value">[0.5, 0.5, 0.5]</td>
+                        <td>Scale factor for Kelly bet sizing (1.0 = full Kelly)</td>
+                    </tr>
+                    <tr>
+                        <td class="param-name">target_buy_ev</td>
+                        <td class="param-value">[0.05, 0.05, 0.05]</td>
+                        <td>Minimum edge (5%) required before placing a buy bet</td>
+                    </tr>
+                    <tr>
+                        <td class="param-name">target_sell_ev</td>
+                        <td class="param-value">[0.05, 0.05, 0.05]</td>
+                        <td>Minimum edge (5%) required before selling a position</td>
+                    </tr>
+                    <tr>
+                        <td class="param-name">MAX_PERCENTAGE_BET</td>
+                        <td class="param-value">10%</td>
+                        <td>Maximum percentage of bankroll per single bet</td>
+                    </tr>
+                    <tr>
+                        <td class="param-name">MAX_DOLLAR_BET</td>
+                        <td class="param-value">$50</td>
+                        <td>Maximum dollar amount per individual bet</td>
+                    </tr>
+                    <tr>
+                        <td class="param-name">MAX_PINNACLE_TRUE_PROB</td>
+                        <td class="param-value">0.85</td>
+                        <td>Won't bet on heavy favorites above 85% true probability</td>
+                    </tr>
+                    <tr>
+                        <td class="param-name">MIN_PINNACLE_TRUE_PROB</td>
+                        <td class="param-value">0.15</td>
+                        <td>Won't bet on long shots below 15% true probability</td>
+                    </tr>
+                    <tr>
+                        <td class="param-name">INCLUDE_LIVE</td>
+                        <td class="param-value">False</td>
+                        <td>Whether to place bets on live in-progress games</td>
+                    </tr>
+                    <tr>
+                        <td class="param-name">trading_start</td>
+                        <td class="param-value">0</td>
+                        <td>Hour (24h) when trading window opens</td>
+                    </tr>
+                    <tr>
+                        <td class="param-name">trading_end</td>
+                        <td class="param-value">24</td>
+                        <td>Hour (24h) when trading window closes</td>
+                    </tr>
+                    <tr>
+                        <td class="param-name">time_interval</td>
+                        <td class="param-value">0 seconds</td>
+                        <td>Pause duration between trading cycles</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Mermaid with dark theme
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            themeVariables: {
+                primaryColor: '#1a2a3a',
+                primaryTextColor: '#f0f0f5',
+                primaryBorderColor: '#00d4ff',
+                lineColor: '#00d4ff',
+                secondaryColor: '#2a1a2a',
+                tertiaryColor: '#1a3a2a',
+                background: '#0a0a0f',
+                mainBkg: '#12121a',
+                nodeBorder: '#00d4ff',
+                clusterBkg: '#12121a',
+                clusterBorder: '#2a2a3a',
+                titleColor: '#00d4ff',
+                edgeLabelBackground: '#12121a',
+                actorBkg: '#1a2a3a',
+                actorBorder: '#00d4ff',
+                actorTextColor: '#f0f0f5',
+                actorLineColor: '#00d4ff',
+                signalColor: '#00d4ff',
+                signalTextColor: '#f0f0f5',
+                labelBoxBkgColor: '#12121a',
+                labelBoxBorderColor: '#00d4ff',
+                labelTextColor: '#f0f0f5',
+                loopTextColor: '#b8ff57',
+                noteBorderColor: '#ff2e97',
+                noteBkgColor: '#2a1a2a',
+                noteTextColor: '#f0f0f5',
+                activationBorderColor: '#00d4ff',
+                activationBkgColor: '#1a2a3a',
+                sequenceNumberColor: '#0a0a0f'
+            },
+            flowchart: {
+                curve: 'basis',
+                padding: 20
+            },
+            sequence: {
+                mirrorActors: false,
+                bottomMarginAdj: 10,
+                actorFontFamily: 'JetBrains Mono',
+                messageFontFamily: 'JetBrains Mono',
+                noteFontFamily: 'JetBrains Mono'
+            }
+        });
+
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Remove active from all tabs
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+                
+                // Add active to clicked tab
+                tab.classList.add('active');
+                const panelId = tab.dataset.panel;
+                document.getElementById(panelId).classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>

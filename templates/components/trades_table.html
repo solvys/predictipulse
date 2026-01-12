@@ -1,0 +1,46 @@
+<section class="panel">
+  <div class="panel-header">
+    <h2 class="section-title">Recent Trades</h2>
+    <span class="hint">Win/Loss outcomes and P&L</span>
+  </div>
+  <div class="table-wrapper">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Matchup</th>
+          <th>Team</th>
+          <th>Entry Price</th>
+          <th>Stake</th>
+          <th>Edge %</th>
+          <th>Result</th>
+          <th>P&L</th>
+        </tr>
+      </thead>
+      <tbody id="trades-body">
+        {% if trades %}
+          {% for trade in trades %}
+          <tr class="trade-row {{ 'win' if trade.result == 'WIN' else 'loss' if trade.result == 'LOSS' else 'pending' }}">
+            <td>{{ trade.timestamp | int | timestamp_fmt }}</td>
+            <td>{{ trade.matchup }}</td>
+            <td>{{ trade.team }}</td>
+            <td>{{ "%.1f"|format(trade.entry_price * 100) }}%</td>
+            <td>${{ "%.2f"|format(trade.stake) }}</td>
+            <td>{{ "%.2f"|format(trade.edge) }}%</td>
+            <td>
+              <span class="badge {{ 'badge-win' if trade.result == 'WIN' else 'badge-loss' if trade.result == 'LOSS' else 'badge-pending' }}">
+                {{ trade.result }}
+              </span>
+            </td>
+            <td class="{{ 'pnl-positive' if trade.pnl > 0 else 'pnl-negative' if trade.pnl < 0 else '' }}">
+              {{ "%+.2f"|format(trade.pnl) }}
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+        <tr><td colspan="8" class="muted">No trades yet — start the bot to begin trading</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</section>

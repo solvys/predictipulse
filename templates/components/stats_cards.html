@@ -1,0 +1,25 @@
+<section class="panel">
+  <h2 class="section-title">Key Metrics</h2>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Avg R:R</div>
+      <div id="stat-rr" class="stat-value">{{ "%.2f"|format(stats.avg_rr) if stats.trades > 0 else '--' }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Trades</div>
+      <div id="stat-trades" class="stat-value">{{ stats.trades }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Win Rate</div>
+      <div id="stat-winrate" class="stat-value">{{ "%.1f"|format(stats.win_rate) if stats.trades > 0 else '--' }}%</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Wins</div>
+      <div id="stat-wins" class="stat-value win-text">{{ stats.wins }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Losses</div>
+      <div id="stat-losses" class="stat-value loss-text">{{ stats.losses }}</div>
+    </div>
+  </div>
+</section>

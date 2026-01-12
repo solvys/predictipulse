@@ -1,0 +1,66 @@
+<section class="panel">
+  <div class="panel-header">
+    <h2 class="section-title">Configuration</h2>
+    <span class="hint">Edit parameters and save</span>
+  </div>
+  <form id="config-form" class="form-grid">
+    <div class="form-control">
+      <label>Kelly Multiplier</label>
+      <input type="number" step="0.01" name="kelly_multiplier" value="{{ config.get('kelly_multiplier', 0.5) }}" required>
+    </div>
+    <div class="form-control">
+      <label>Target Buy EV</label>
+      <input type="number" step="0.01" name="target_buy_ev" value="{{ config.get('target_buy_ev', 0.05) }}" required>
+    </div>
+    <div class="form-control">
+      <label>Target Sell EV</label>
+      <input type="number" step="0.01" name="target_sell_ev" value="{{ config.get('target_sell_ev', 0.05) }}" required>
+    </div>
+    <div class="form-control">
+      <label>Max % Bet</label>
+      <input type="number" step="0.1" name="max_percentage_bet" value="{{ config.get('max_percentage_bet', 10) }}" required>
+    </div>
+    <div class="form-control">
+      <label>Max $ Bet</label>
+      <input type="number" step="1" name="max_dollar_bet" value="{{ config.get('max_dollar_bet', 50) }}" required>
+    </div>
+    <div class="form-control">
+      <label>Min True Prob</label>
+      <input type="number" step="0.01" name="min_true_prob" value="{{ config.get('min_true_prob', 0.15) }}" required>
+    </div>
+    <div class="form-control">
+      <label>Max True Prob</label>
+      <input type="number" step="0.01" name="max_true_prob" value="{{ config.get('max_true_prob', 0.85) }}" required>
+    </div>
+    <div class="form-control full">
+      <label>Sports</label>
+      <div class="sport-chips" id="sport-chips">
+        <button type="button" class="sport-chip {{ 'active' if 'NBA' in config.get('sports', []) else '' }}" data-sport="NBA">NBA</button>
+        <button type="button" class="sport-chip {{ 'active' if 'NFL' in config.get('sports', []) else '' }}" data-sport="NFL">NFL</button>
+        <button type="button" class="sport-chip {{ 'active' if 'MLB' in config.get('sports', []) else '' }}" data-sport="MLB">MLB</button>
+        <button type="button" class="sport-chip {{ 'active' if 'NHL' in config.get('sports', []) else '' }}" data-sport="NHL">NHL</button>
+        <button type="button" class="sport-chip {{ 'active' if 'NCAAF' in config.get('sports', []) else '' }}" data-sport="NCAAF">NCAAF</button>
+        <button type="button" class="sport-chip {{ 'active' if 'NCAAB' in config.get('sports', []) else '' }}" data-sport="NCAAB">NCAAB</button>
+        <button type="button" class="sport-chip {{ 'active' if 'MLS' in config.get('sports', []) else '' }}" data-sport="MLS">MLS</button>
+        <button type="button" class="sport-chip {{ 'active' if 'UFC' in config.get('sports', []) else '' }}" data-sport="UFC">UFC</button>
+      </div>
+      <input type="hidden" name="sports" id="sports-input" value="{{ config.get('sports', [])|join(',') }}">
+    </div>
+    <div class="form-control full">
+      <label>BoltOdds API Key</label>
+      <input type="password" name="boltodds_api_key" value="{{ config.get('boltodds_api_key', '') }}" placeholder="Enter your BoltOdds API key">
+    </div>
+    <div class="form-control">
+      <label>Trading Start (hour)</label>
+      <input type="number" name="trading_start" value="{{ config.get('trading_start', 0) }}" required>
+    </div>
+    <div class="form-control">
+      <label>Trading End (hour)</label>
+      <input type="number" name="trading_end" value="{{ config.get('trading_end', 24) }}" required>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="primary-btn">Save</button>
+      <button type="button" id="reset-config" class="ghost-btn">Reset</button>
+    </div>
+  </form>
+</section>

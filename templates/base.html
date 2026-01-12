@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Predictipulse</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Advent+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+
+<body class="dark">
+  <div class="scanline-overlay"></div>
+  {% block content %}{% endblock %}
+  <script>
+    const fmt = {
+      currency: (v) => `$${Number(v || 0).toFixed(2)}`,
+      pct: (v) => `${Number(v || 0).toFixed(1)}%`,
+    };
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+
+</html>
