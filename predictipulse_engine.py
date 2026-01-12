@@ -14,6 +14,7 @@ from queue import SimpleQueue, Empty
 from typing import Any, Dict, List, Optional
 
 from kalshi_adapter import KalshiClient
+from performance_tracker import PerformanceTracker
 
 LOG_FORMAT = "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
 logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
@@ -34,7 +35,12 @@ class Trade:
 
 
 class PredictipulseEngine:
-    def __init__(self, config: Dict[str, Any], demo_mode: bool = True):
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        demo_mode: bool = True,
+        performance_tracker: Optional[PerformanceTracker] = None,
+    ):
         self.config = dict(config)
         self.demo_mode = demo_mode
         self._running = False
@@ -44,6 +50,7 @@ class PredictipulseEngine:
         self._trade_queue: SimpleQueue[Dict[str, Any]] = SimpleQueue()
         self._lock = threading.Lock()
         self.logger = logging.getLogger("predictipulse_engine")
+        self.performance_tracker = performance_tracker
 
         # Stats tracking - default to 0 until we get real data from Kalshi
         self._bankroll = 0.0
@@ -264,6 +271,8 @@ class PredictipulseEngine:
 
         self._trades.append(trade)
         self._trade_queue.put(asdict(trade))
+        if self.performance_tracker:
+            self.performance_tracker.log_trade(asdict(trade), source="paper")
 
         self._emit_log(
             "INFO" if win else "WARNING",
@@ -362,6 +371,11 @@ class PredictipulseEngine:
             self._total_pnl = round(self._bankroll - self._initial_bankroll, 2)
             positions = self.kalshi_client.get_positions()
             self._trades = self._convert_positions_to_trades(positions)
+            if self.performance_tracker:
+                self.performance_tracker.bulk_log(
+                    [asdict(t) for t in self._trades],
+                    source="actual",
+                )
         except Exception as exc:  # pragma: no cover - network errors
             self._emit_log("WARNING", f"Kalshi sync failed: {exc}")
 

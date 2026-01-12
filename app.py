@@ -3,11 +3,15 @@
 import json
 import os
 import time
-from typing import Any, Dict, Iterable
+from datetime import datetime, timedelta
+from typing import Any, Dict, Iterable, List
 
 from flask import Flask, Response, jsonify, render_template, request
 
+from backtest_engine import BacktestEngine
 from config_manager import ConfigManager
+from espn_adapter import ESPNAdapter
+from performance_tracker import PerformanceTracker
 from predictipulse_engine import PredictipulseEngine
 
 app = Flask(__name__)
@@ -22,7 +26,13 @@ def timestamp_fmt(ts: float) -> str:
 config_manager = ConfigManager()
 config = config_manager.load()
 demo_mode = os.environ.get("DEMO_MODE", "false").lower() == "true"
-engine = PredictipulseEngine(config=config, demo_mode=demo_mode)
+performance_tracker = PerformanceTracker()
+engine = PredictipulseEngine(
+    config=config,
+    demo_mode=demo_mode,
+    performance_tracker=performance_tracker,
+)
+backtest_engine = BacktestEngine(espn_adapter=ESPNAdapter())
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +127,49 @@ def api_config():
     config_manager.save(data)
     engine.update_config(data)
     return jsonify({"ok": True, "config": engine.get_config()})
+
+
+@app.route("/api/performance", methods=["GET"])
+def api_performance():
+    source = request.args.get("source", "paper")
+    metrics = performance_tracker.get_rolling_metrics(days=7, source=source)
+    history = performance_tracker.get_history(limit=30, source=source)
+    return jsonify({"metrics": metrics, "history": history})
+
+
+@app.route("/api/backtest", methods=["POST"])
+def api_backtest():
+    payload: Dict[str, Any] = request.get_json(force=True) or {}
+    sports: List[str] = payload.get("sports") or config.get("sports", [])
+    if isinstance(sports, str):
+        sports = [s.strip() for s in sports.split(",") if s.strip()]
+    start_date = payload.get("start_date") or (datetime.utcnow() - timedelta(days=7)).date().isoformat()
+    end_date = payload.get("end_date") or datetime.utcnow().date().isoformat()
+    stake = float(payload.get("stake") or 10.0)
+    edge_threshold = float(payload.get("edge_threshold") or 0.05)
+
+    result = backtest_engine.run_backtest(
+        sports=sports,
+        start_date=start_date,
+        end_date=end_date,
+        stake=stake,
+        edge_threshold=edge_threshold,
+    )
+    backtest_id = f"bt-{int(time.time())}"
+    performance_tracker.store_backtest(
+        backtest_id=backtest_id,
+        sports=sports,
+        start_date=start_date,
+        end_date=end_date,
+        summary=result["summary"],
+    )
+    result["id"] = backtest_id
+    return jsonify(result)
+
+
+@app.route("/api/backtest/history", methods=["GET"])
+def api_backtest_history():
+    return jsonify(performance_tracker.list_backtests(limit=20))
 
 
 @app.route("/stream/logs")

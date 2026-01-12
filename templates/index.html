@@ -10,6 +10,7 @@
       <button class="tab" data-tab="trades">Trades</button>
       <button class="tab" data-tab="config">Config</button>
       <button class="tab" data-tab="logs">Logs</button>
+      <button class="tab" data-tab="performance">Performance</button>
     </div>
 
     <div class="tab-section active" id="tab-dashboard">
@@ -27,6 +28,10 @@
 
     <div class="tab-section" id="tab-logs">
       {% include "components/log_viewer.html" %}
+    </div>
+
+    <div class="tab-section" id="tab-performance">
+      {% include "components/performance_panel.html" %}
     </div>
   </div>
 </div>
@@ -46,6 +51,13 @@
     oppCount: 0,
     currentPeriod: 'day',
     opportunities: [],
+    performance: {
+      source: 'paper',
+      metrics: null,
+      history: [],
+      backtests: [],
+      backtestSummary: null,
+    },
   };
 
   // ==========================================================================
@@ -331,6 +343,7 @@
     trades: document.getElementById('tab-trades'),
     config: document.getElementById('tab-config'),
     logs: document.getElementById('tab-logs'),
+    performance: document.getElementById('tab-performance'),
   };
 
   tabs.forEach(tab => {
@@ -490,6 +503,188 @@
 
     // Update P&L chart
     updatePnlChart(stats.total_pnl);
+  }
+
+  // ==========================================================================
+  // PERFORMANCE (7d) + BACKTESTING
+  // ==========================================================================
+  const perfCtx = document.getElementById('perf-chart')?.getContext('2d');
+  let perfChart = null;
+
+  function renderPerformanceChart(daily = []) {
+    if (!perfCtx) return;
+    const labels = daily.map(d => d.date?.slice(5) || '');
+    const data = daily.map(d => d.pnl ?? 0);
+    const bounds = computeScaleBounds(data.length ? data : [0]);
+    const dataset = {
+      label: 'Daily P&L',
+      data,
+      backgroundColor: data.map(v => (v >= 0 ? 'rgba(0, 200, 120, 0.35)' : 'rgba(255, 107, 107, 0.35)')),
+      borderColor: data.map(v => (v >= 0 ? '#00c878' : '#ff6b6b')),
+      borderWidth: 1.5,
+    };
+    if (!perfChart) {
+      perfChart = new Chart(perfCtx, {
+        type: 'bar',
+        data: { labels, datasets: [dataset] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              suggestedMin: bounds.suggestedMin,
+              suggestedMax: bounds.suggestedMax,
+              grid: { color: 'rgba(255,255,255,0.05)' },
+            },
+            x: { grid: { display: false } },
+          },
+          plugins: { legend: { display: false } },
+        },
+      });
+    } else {
+      perfChart.data.labels = labels;
+      perfChart.data.datasets[0].data = data;
+      perfChart.options.scales.y.suggestedMin = bounds.suggestedMin;
+      perfChart.options.scales.y.suggestedMax = bounds.suggestedMax;
+      perfChart.update();
+    }
+  }
+
+  function renderPerformanceHistory(rows = []) {
+    const body = document.getElementById('perf-history-body');
+    if (!body) return;
+    body.innerHTML = '';
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="7" class="muted">No trades yet.</td></tr>';
+      return;
+    }
+    rows.forEach((row) => {
+      const pnlClass = row.pnl > 0 ? 'pnl-positive' : row.pnl < 0 ? 'pnl-negative' : '';
+      const resultClass = row.pnl > 0 ? 'badge-win' : row.pnl < 0 ? 'badge-loss' : 'badge-pending';
+      const ts = row.ts ? new Date(row.ts * 1000).toLocaleString() : '--';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${ts}</td>
+        <td>${row.matchup || '--'}</td>
+        <td>${row.team || '--'}</td>
+        <td>${(row.edge || 0).toFixed(2)}%</td>
+        <td>$${Number(row.stake || 0).toFixed(2)}</td>
+        <td><span class="badge ${resultClass}">${row.result || 'PENDING'}</span></td>
+        <td class="${pnlClass}">${row.pnl >= 0 ? '+' : ''}${Number(row.pnl || 0).toFixed(2)}</td>
+      `;
+      body.appendChild(tr);
+    });
+  }
+
+  function updatePerformanceUI(payload, source) {
+    state.performance.source = source;
+    state.performance.metrics = payload.metrics;
+    state.performance.history = payload.history;
+    const m = payload.metrics || {};
+    document.getElementById('perf-pnl').textContent = fmt.currency(m.pnl);
+    document.getElementById('perf-winrate').textContent = fmt.pct(m.win_rate);
+    document.getElementById('perf-roi').textContent = fmt.pct(m.roi);
+    document.getElementById('perf-edge').textContent = `${Number(m.avg_edge || 0).toFixed(2)}%`;
+    document.getElementById('perf-chart-pnl').textContent = fmt.currency(m.pnl);
+    document.getElementById('perf-trade-count').textContent = `${m.trades || 0} trades`;
+    renderPerformanceChart(m.daily || []);
+    renderPerformanceHistory(payload.history || []);
+  }
+
+  async function fetchPerformance(source = 'paper') {
+    const res = await fetch(`/api/performance?source=${source}`);
+    const data = await res.json();
+    updatePerformanceUI(data, source);
+    document.querySelectorAll('#performance-source-toggle .pill-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.source === source);
+    });
+  }
+
+  // Backtest UI helpers
+  function updateBacktestSummary(summary = {}) {
+    document.getElementById('bt-trades').textContent = summary.trades ?? '--';
+    document.getElementById('bt-winrate').textContent = summary.win_rate !== undefined ? fmt.pct(summary.win_rate) : '--';
+    document.getElementById('bt-pnl').textContent = summary.pnl !== undefined ? fmt.currency(summary.pnl) : '--';
+    document.getElementById('bt-roi').textContent = summary.roi !== undefined ? fmt.pct(summary.roi) : '--';
+    document.getElementById('bt-sharpe').textContent = summary.sharpe ?? '--';
+    document.getElementById('bt-dd').textContent = summary.max_drawdown !== undefined ? fmt.currency(summary.max_drawdown) : '--';
+  }
+
+  function renderBacktestHistory(rows = []) {
+    const body = document.getElementById('backtest-history-body');
+    body.innerHTML = '';
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="6" class="muted">No backtests yet.</td></tr>';
+      return;
+    }
+    rows.forEach((row) => {
+      const summary = row.summary || {};
+      const tr = document.createElement('tr');
+      const created = row.created_at ? new Date(row.created_at * 1000).toLocaleString() : '--';
+      tr.innerHTML = `
+        <td>${created}</td>
+        <td>${row.sports}</td>
+        <td>${row.start_date} → ${row.end_date}</td>
+        <td>${summary.pnl !== undefined ? fmt.currency(summary.pnl) : '--'}</td>
+        <td>${summary.win_rate !== undefined ? fmt.pct(summary.win_rate) : '--'}</td>
+        <td>${summary.roi !== undefined ? fmt.pct(summary.roi) : '--'}</td>
+      `;
+      body.appendChild(tr);
+    });
+  }
+
+  async function refreshBacktestHistory() {
+    const res = await fetch('/api/backtest/history');
+    const rows = await res.json();
+    renderBacktestHistory(rows);
+  }
+
+  async function runBacktest(payload) {
+    const btn = document.getElementById('backtest-run-btn');
+    btn.disabled = true;
+    btn.textContent = 'Running...';
+    try {
+      const res = await fetch('/api/backtest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      updateBacktestSummary(data.summary || {});
+      await refreshBacktestHistory();
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Run Backtest';
+    }
+  }
+
+  function initPerformance() {
+    const yesterday = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    document.getElementById('backtest-start').value = yesterday;
+    document.getElementById('backtest-end').value = today;
+    document.getElementById('backtest-sports').value = (state.config.sports || []).join(',');
+
+    document.querySelectorAll('#performance-source-toggle .pill-btn').forEach((btn) => {
+      btn.addEventListener('click', () => fetchPerformance(btn.dataset.source));
+    });
+
+    const backtestForm = document.getElementById('backtest-form');
+    backtestForm?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const sports = (document.getElementById('backtest-sports').value || '').split(',').map(s => s.trim()).filter(Boolean);
+      const payload = {
+        sports: sports.length ? sports : state.config.sports,
+        start_date: document.getElementById('backtest-start').value,
+        end_date: document.getElementById('backtest-end').value,
+        stake: parseFloat(document.getElementById('backtest-stake').value || '10'),
+        edge_threshold: parseFloat(document.getElementById('backtest-edge').value || '0.05'),
+      };
+      runBacktest(payload);
+    });
+
+    fetchPerformance('paper');
+    refreshBacktestHistory();
   }
 
   // ==========================================================================
@@ -689,5 +884,6 @@
   refreshKalshiStatus();
   updateStats(state.stats);
   renderOpportunities();
+  initPerformance();
 </script>
 {% endblock %}

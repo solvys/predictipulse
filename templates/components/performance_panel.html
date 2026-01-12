@@ -1,0 +1,140 @@
+<div class="panel">
+  <div class="panel-header">
+    <div>
+      <h3 class="section-title">Performance (7d)</h3>
+      <p class="hint">Track paper vs actual trades with rolling KPIs</p>
+    </div>
+    <div class="toggle-group" id="performance-source-toggle">
+      <button class="pill-btn active" data-source="paper">Paper</button>
+      <button class="pill-btn" data-source="actual">Actual</button>
+    </div>
+  </div>
+
+  <div class="stats-grid" id="performance-kpis">
+    <div class="stat-card">
+      <div class="stat-label">P&L (7d)</div>
+      <div class="stat-value" id="perf-pnl">--</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Win Rate</div>
+      <div class="stat-value" id="perf-winrate">--</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">ROI</div>
+      <div class="stat-value" id="perf-roi">--</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg Edge</div>
+      <div class="stat-value" id="perf-edge">--</div>
+    </div>
+  </div>
+
+  <div class="performance-chart-wrapper">
+    <div class="performance-chart-header">
+      <div>
+        <div class="chart-label">Daily P&L</div>
+        <div class="chart-value" id="perf-chart-pnl">$0.00</div>
+      </div>
+      <div class="pill small" id="perf-trade-count">0 trades</div>
+    </div>
+    <canvas id="perf-chart" height="140"></canvas>
+  </div>
+
+  <div class="table-wrapper compact">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Matchup</th>
+          <th>Team</th>
+          <th>Edge</th>
+          <th>Stake</th>
+          <th>Result</th>
+          <th>P&L</th>
+        </tr>
+      </thead>
+      <tbody id="perf-history-body">
+        <tr><td colspan="7" class="muted">No trades yet.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-header">
+    <div>
+      <h3 class="section-title">Run Backtest</h3>
+      <p class="hint">Replay games with ESPN outcomes</p>
+    </div>
+  </div>
+  <form id="backtest-form" class="form-grid">
+    <div class="form-control">
+      <label>Sports (comma separated)</label>
+      <input type="text" id="backtest-sports" placeholder="NBA,NFL,NHL" />
+    </div>
+    <div class="form-control">
+      <label>Start Date (YYYY-MM-DD)</label>
+      <input type="text" id="backtest-start" />
+    </div>
+    <div class="form-control">
+      <label>End Date (YYYY-MM-DD)</label>
+      <input type="text" id="backtest-end" />
+    </div>
+    <div class="form-control">
+      <label>Stake per bet ($)</label>
+      <input type="number" id="backtest-stake" step="1" min="1" value="10" />
+    </div>
+    <div class="form-control">
+      <label>Edge Threshold</label>
+      <input type="number" id="backtest-edge" step="0.01" min="0" max="1" value="0.05" />
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="primary-btn" id="backtest-run-btn">Run Backtest</button>
+    </div>
+  </form>
+
+  <div class="stats-grid" id="backtest-kpis">
+    <div class="stat-card">
+      <div class="stat-label">Trades</div>
+      <div class="stat-value" id="bt-trades">--</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Win Rate</div>
+      <div class="stat-value" id="bt-winrate">--</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">P&L</div>
+      <div class="stat-value" id="bt-pnl">--</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">ROI</div>
+      <div class="stat-value" id="bt-roi">--</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Sharpe</div>
+      <div class="stat-value" id="bt-sharpe">--</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Max Drawdown</div>
+      <div class="stat-value" id="bt-dd">--</div>
+    </div>
+  </div>
+
+  <div class="table-wrapper compact">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Created</th>
+          <th>Sports</th>
+          <th>Range</th>
+          <th>P&L</th>
+          <th>Win Rate</th>
+          <th>ROI</th>
+        </tr>
+      </thead>
+      <tbody id="backtest-history-body">
+        <tr><td colspan="6" class="muted">No backtests yet.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>

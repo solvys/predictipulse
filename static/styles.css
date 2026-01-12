@@ -643,6 +643,44 @@ button {
   height: 100% !important;
 }
 
+.performance-chart-wrapper {
+  margin-top: 12px;
+  background: rgba(6, 6, 10, 0.9);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.performance-chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.table-wrapper.compact .data-table th,
+.table-wrapper.compact .data-table td {
+  padding: 8px 10px;
+}
+
+.pill-btn {
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: #ccc;
+  cursor: pointer;
+  font-family: 'Advent Pro', sans-serif;
+  font-style: italic;
+  transition: all 0.2s ease;
+}
+
+.pill-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.3);
+}
+
 /* =============================================================================
    PLATFORM TICKERS
    ============================================================================= */
