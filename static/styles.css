@@ -190,7 +190,8 @@ button {
 .tabs {
   display: flex;
   gap: 8px;
-  padding: 12px 24px;
+  padding: 12px 24px 12px 24px;
+  margin: 0;
   border-bottom: 1px solid var(--border);
   background: rgba(10, 10, 0, 0.7);
 }
@@ -216,7 +217,7 @@ button {
 }
 
 .tab-section {
-  padding: 18px 24px 32px;
+  padding: 8px 24px 32px;
   display: block;
   opacity: 0;
   transform: translateY(8px);
@@ -237,6 +238,10 @@ button {
   visibility: visible;
 }
 
+.tab-section > *:first-child {
+  margin-top: 0 !important;
+}
+
 #tab-dashboard {
   background-color: rgba(0, 0, 0, 1);
 }
@@ -246,6 +251,7 @@ button {
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 18px;
+  margin-top: 0;
   margin-bottom: 16px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
 }
@@ -288,7 +294,7 @@ button {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
-  margin-top: 12px;
+  margin-top: 0;
   margin-bottom: 24px;
 }
 
