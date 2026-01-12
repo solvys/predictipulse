@@ -1161,6 +1161,12 @@
       }
       
       // Update the date range display field
+      const dateRangeDisplay = document.getElementById('backtest-date-range');
+      if (dateRangeDisplay) {
+        dateRangeDisplay.value = `${startFormatted} → ${endFormatted}`;
+      }
+      
+      // Also update currentPickerInput if it exists
       if (currentPickerInput) {
         currentPickerInput.value = `${startFormatted} → ${endFormatted}`;
       }
