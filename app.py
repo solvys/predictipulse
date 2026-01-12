@@ -147,6 +147,7 @@ def api_backtest():
     end_date = payload.get("end_date") or datetime.utcnow().date().isoformat()
     stake = float(payload.get("stake") or 10.0)
     edge_threshold = float(payload.get("edge_threshold") or 0.05)
+    starting_balance = float(payload.get("starting_balance") or 1000.0)
 
     result = backtest_engine.run_backtest(
         sports=sports,
@@ -154,6 +155,7 @@ def api_backtest():
         end_date=end_date,
         stake=stake,
         edge_threshold=edge_threshold,
+        starting_balance=starting_balance,
     )
     backtest_id = f"bt-{int(time.time())}"
     performance_tracker.store_backtest(

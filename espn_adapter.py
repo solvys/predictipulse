@@ -41,7 +41,8 @@ class ESPNAdapter:
             raise ValueError(f"Unsupported sport for ESPN: {sport}")
         cat, league = sport_path
         date_str = _date_str(day)
-        return f"https://site.web.api.espn.com/apis/v2/sports/{cat}/{league}/scoreboard?dates={date_str}"
+        # Use the v2 site API which is more reliable
+        return f"https://site.api.espn.com/apis/site/v2/sports/{cat}/{league}/scoreboard?dates={date_str}"
 
     def fetch_scoreboard(self, sport: str, day: _dt.date) -> Dict[str, Any]:
         """Fetch raw scoreboard JSON with a small in-memory cache."""
@@ -83,12 +84,19 @@ class ESPNAdapter:
             def _team_payload(entry: Dict[str, Any]) -> Dict[str, Any]:
                 score = float(entry.get("score") or 0)
                 team = (entry.get("team") or {}).get("displayName") or "Unknown"
-                record = entry.get("record") or []
+                record = entry.get("records") or entry.get("record") or []
+                record_str = ""
+                if record and isinstance(record, list) and len(record) > 0:
+                    rec = record[0]
+                    if isinstance(rec, dict):
+                        record_str = rec.get("summary", "")
+                    elif isinstance(rec, str):
+                        record_str = rec
                 return {
                     "team": team,
                     "score": score,
                     "winner": bool(entry.get("winner")),
-                    "record": record[0]["summary"] if record else "",
+                    "record": record_str,
                 }
 
             odds = (comp.get("odds") or [{}])[0]

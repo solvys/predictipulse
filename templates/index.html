@@ -44,6 +44,65 @@
   </div>
 </div>
 
+<!-- iOS 26 Style Calendar Picker -->
+<div id="calendar-picker-overlay" class="calendar-overlay">
+  <div class="calendar-picker">
+    <div class="calendar-header">
+      <button class="calendar-close" id="calendar-close">×</button>
+      <h3 class="calendar-title">Select Date Range</h3>
+    </div>
+    <div class="calendar-body">
+      <!-- Start Date Calendar -->
+      <div class="calendar-date-section">
+        <div class="calendar-date-label">Start Date</div>
+        <div class="calendar-nav">
+          <button class="calendar-nav-btn" id="start-prev-month">‹</button>
+          <div class="calendar-month-year" id="start-month-year">January 2025</div>
+          <button class="calendar-nav-btn" id="start-next-month">›</button>
+        </div>
+        <div class="calendar-grid" id="start-calendar-grid">
+          <div class="calendar-weekdays">
+            <div class="calendar-weekday">S</div>
+            <div class="calendar-weekday">M</div>
+            <div class="calendar-weekday">T</div>
+            <div class="calendar-weekday">W</div>
+            <div class="calendar-weekday">T</div>
+            <div class="calendar-weekday">F</div>
+            <div class="calendar-weekday">S</div>
+          </div>
+          <div class="calendar-days" id="start-calendar-days"></div>
+        </div>
+      </div>
+      
+      <!-- End Date Calendar -->
+      <div class="calendar-date-section">
+        <div class="calendar-date-label">End Date</div>
+        <div class="calendar-nav">
+          <button class="calendar-nav-btn" id="end-prev-month">‹</button>
+          <div class="calendar-month-year" id="end-month-year">January 2025</div>
+          <button class="calendar-nav-btn" id="end-next-month">›</button>
+        </div>
+        <div class="calendar-grid" id="end-calendar-grid">
+          <div class="calendar-weekdays">
+            <div class="calendar-weekday">S</div>
+            <div class="calendar-weekday">M</div>
+            <div class="calendar-weekday">T</div>
+            <div class="calendar-weekday">W</div>
+            <div class="calendar-weekday">T</div>
+            <div class="calendar-weekday">F</div>
+            <div class="calendar-weekday">S</div>
+          </div>
+          <div class="calendar-days" id="end-calendar-days"></div>
+        </div>
+      </div>
+    </div>
+    <div class="calendar-footer">
+      <button class="calendar-btn calendar-btn-cancel" id="calendar-cancel">Cancel</button>
+      <button class="calendar-btn calendar-btn-confirm" id="calendar-confirm">Done</button>
+    </div>
+  </div>
+</div>
+
 <script>
   // ==========================================================================
   // STATE
@@ -615,7 +674,7 @@
     document.getElementById('bt-winrate').textContent = summary.win_rate !== undefined ? fmt.pct(summary.win_rate) : '--';
     document.getElementById('bt-pnl').textContent = summary.pnl !== undefined ? fmt.currency(summary.pnl) : '--';
     document.getElementById('bt-roi').textContent = summary.roi !== undefined ? fmt.pct(summary.roi) : '--';
-    document.getElementById('bt-sharpe').textContent = summary.sharpe ?? '--';
+    document.getElementById('bt-ending-balance').textContent = summary.ending_balance !== undefined ? fmt.currency(summary.ending_balance) : '--';
     document.getElementById('bt-dd').textContent = summary.max_drawdown !== undefined ? fmt.currency(summary.max_drawdown) : '--';
   }
 
@@ -648,49 +707,605 @@
     renderBacktestHistory(rows);
   }
 
+  function updateBacktestStatus(type, message, progress = null) {
+    const status = document.getElementById('backtest-status');
+    if (!status) return;
+    
+    status.className = 'backtest-status visible ' + type;
+    
+    if (type === 'running' && progress !== null) {
+      status.innerHTML = `
+        <div class="spinner"></div>
+        <span>${message}</span>
+        <div class="progress-bar">
+          <div class="progress-bar-fill" style="width: ${progress}%"></div>
+        </div>
+        <span>${progress}%</span>
+      `;
+    } else if (type === 'running') {
+      status.innerHTML = `<div class="spinner"></div><span>${message}</span>`;
+    } else {
+      status.innerHTML = `<span>${message}</span>`;
+    }
+  }
+
+  function hideBacktestStatus() {
+    const status = document.getElementById('backtest-status');
+    if (status) {
+      status.className = 'backtest-status';
+    }
+  }
+
   async function runBacktest(payload) {
     const btn = document.getElementById('backtest-run-btn');
+    const panel = document.getElementById('backtest-panel');
+    const wasRunning = btn.classList.contains('engine-active');
+    
     btn.disabled = true;
     btn.textContent = 'Running...';
+    btn.classList.add('engine-active');
+    panel?.classList.add('engine-running');
+    
+    // Add flicker effect
+    btn.classList.remove('flicker-on', 'flicker-off');
+    btn.classList.add('flicker-on');
+    setTimeout(() => btn.classList.remove('flicker-on'), 600);
+    
+    updateBacktestStatus('running', 'Initializing backtest...');
+    
     try {
+      // Validate dates
+      const startDate = new Date(payload.start_date);
+      const endDate = new Date(payload.end_date);
+      const today = new Date();
+      
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        throw new Error('Invalid date format. Use YYYY-MM-DD.');
+      }
+      
+      if (startDate > today || endDate > today) {
+        throw new Error('Dates must be in the past. ESPN only has historical data.');
+      }
+      
+      if (startDate > endDate) {
+        throw new Error('Start date must be before end date.');
+      }
+      
+      updateBacktestStatus('running', `Fetching ${payload.sports.join(', ')} games from ESPN...`, 10);
+      
       const res = await fetch('/api/backtest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+      
+      updateBacktestStatus('running', 'Processing response...', 70);
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Server error (${res.status}): ${errorText}`);
+      }
+      
       const data = await res.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      updateBacktestStatus('running', 'Updating results...', 90);
+      
       updateBacktestSummary(data.summary || {});
       await refreshBacktestHistory();
+      
+      // Update chart with backtest data
+      updateBacktestChart(data.trades || [], payload.starting_balance || 1000);
+      
+      const trades = data.trades?.length || 0;
+      const pnl = data.summary?.pnl?.toFixed(2) || '0.00';
+      updateBacktestStatus('success', `✓ Backtest complete: ${trades} trades, $${pnl} P&L`);
+      
+      // Auto-hide success message after 5 seconds
+      setTimeout(hideBacktestStatus, 5000);
+      
+    } catch (err) {
+      console.error('Backtest error:', err);
+      updateBacktestStatus('error', `✗ ${err.message}`);
     } finally {
       btn.disabled = false;
       btn.textContent = 'Run Backtest';
+      btn.classList.remove('engine-active');
+      panel?.classList.remove('engine-running');
+      
+      // Add flicker-off effect
+      btn.classList.remove('flicker-on', 'flicker-off');
+      btn.classList.add('flicker-off');
+      setTimeout(() => btn.classList.remove('flicker-off'), 600);
     }
   }
 
+  // Backtest chart
+  let backtestChart = null;
+  
+  function initBacktestChart() {
+    const ctx = document.getElementById('backtest-chart');
+    if (!ctx) return;
+    
+    backtestChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Cumulative P&L',
+          data: [],
+          borderColor: '#d4af37',
+          backgroundColor: 'rgba(212, 175, 55, 0.1)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            titleColor: '#d4af37',
+            bodyColor: '#e8e8e8',
+            borderColor: '#d4af37',
+            borderWidth: 1,
+            callbacks: {
+              label: function(context) {
+                return `P&L: ${fmt.currency(context.parsed.y)}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: {
+              color: 'rgba(212, 175, 55, 0.1)',
+              borderColor: 'rgba(212, 175, 55, 0.2)'
+            },
+            ticks: {
+              color: '#d4af37',
+              font: {
+                family: 'Advent Pro',
+                style: 'italic'
+              }
+            }
+          },
+          y: {
+            beginAtZero: false,
+            grid: {
+              color: 'rgba(212, 175, 55, 0.1)',
+              borderColor: 'rgba(212, 175, 55, 0.2)'
+            },
+            ticks: {
+              color: '#d4af37',
+              font: {
+                family: 'Advent Pro',
+                style: 'italic'
+              },
+              callback: function(value) {
+                return fmt.currency(value);
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+  
+  function updateBacktestChart(trades, startingBalance) {
+    if (!backtestChart || !trades.length) {
+      // Clear chart if no data
+      if (backtestChart) {
+        backtestChart.data.labels = [];
+        backtestChart.data.datasets[0].data = [];
+        backtestChart.update();
+      }
+      document.getElementById('backtest-chart-pnl').textContent = '$0.00';
+      return;
+    }
+    
+    // Sort trades by timestamp
+    const sortedTrades = [...trades].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    
+    // Calculate cumulative balance
+    let cumulativeBalance = startingBalance;
+    const labels = [];
+    const data = [startingBalance]; // Start with initial balance
+    
+    // Add initial point with start date (if available from form)
+    const startDateInput = document.getElementById('backtest-start');
+    if (startDateInput?.value) {
+      const startDate = new Date(startDateInput.value);
+      labels.push(startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+    } else {
+      labels.push('Start');
+    }
+    
+    sortedTrades.forEach((trade) => {
+      cumulativeBalance += trade.pnl || 0;
+      const date = new Date((trade.timestamp || Date.now() / 1000) * 1000);
+      labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+      data.push(cumulativeBalance);
+    });
+    
+    // Calculate min/max for auto-scaling with 10% padding
+    const minValue = Math.min(...data);
+    const maxValue = Math.max(...data);
+    const range = maxValue - minValue;
+    const padding = range * 0.1 || Math.abs(minValue) * 0.1 || 100;
+    
+    // Update chart with auto-scaled Y-axis
+    backtestChart.data.labels = labels;
+    backtestChart.data.datasets[0].data = data;
+    backtestChart.options.scales.y.min = minValue - padding;
+    backtestChart.options.scales.y.max = maxValue + padding;
+    backtestChart.update();
+    
+    // Update chart header value (final balance)
+    const finalBalance = data[data.length - 1];
+    document.getElementById('backtest-chart-pnl').textContent = fmt.currency(finalBalance);
+  }
+
+  // iOS 26 Style Calendar Picker
+  let currentPickerInput = null;
+  let startCalendarDate = new Date();
+  let endCalendarDate = new Date();
+  let selectedStartDate = null;
+  let selectedEndDate = null;
+
+  function initCalendarPicker() {
+    const overlay = document.getElementById('calendar-picker-overlay');
+    const confirmBtn = document.getElementById('calendar-confirm');
+    const cancelBtn = document.getElementById('calendar-cancel');
+    const closeBtn = document.getElementById('calendar-close');
+    
+    // Calendar elements
+    const startDaysContainer = document.getElementById('start-calendar-days');
+    const endDaysContainer = document.getElementById('end-calendar-days');
+    const startMonthYear = document.getElementById('start-month-year');
+    const endMonthYear = document.getElementById('end-month-year');
+    const startPrevBtn = document.getElementById('start-prev-month');
+    const startNextBtn = document.getElementById('start-next-month');
+    const endPrevBtn = document.getElementById('end-prev-month');
+    const endNextBtn = document.getElementById('end-next-month');
+
+    // Render calendar grid
+    function renderCalendar(container, monthYear, selectedDate, onDateSelect) {
+      container.innerHTML = '';
+      const [year, month] = monthYear;
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const startDayOfWeek = firstDay.getDay();
+      const daysInMonth = lastDay.getDate();
+      const today = new Date();
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      
+      // Add empty cells for days before month starts
+      for (let i = 0; i < startDayOfWeek; i++) {
+        const empty = document.createElement('div');
+        empty.className = 'calendar-day other-month';
+        container.appendChild(empty);
+      }
+      
+      // Add days of the month
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dayEl = document.createElement('div');
+        dayEl.className = 'calendar-day';
+        dayEl.textContent = day;
+        dayEl.dataset.day = day;
+        dayEl.dataset.month = month;
+        dayEl.dataset.year = year;
+        
+        const cellDate = new Date(year, month, day);
+        const isToday = cellDate.toDateString() === today.toDateString();
+        const isSelected = selectedDate && 
+          cellDate.getFullYear() === selectedDate.getFullYear() &&
+          cellDate.getMonth() === selectedDate.getMonth() &&
+          cellDate.getDate() === selectedDate.getDate();
+        const isValid = cellDate >= oneYearAgo && cellDate <= today;
+        
+        if (!isValid) {
+          dayEl.classList.add('other-month');
+          dayEl.style.pointerEvents = 'none';
+        } else {
+          if (isToday) dayEl.classList.add('today');
+          if (isSelected) dayEl.classList.add('selected');
+          
+          dayEl.addEventListener('click', () => {
+            const date = new Date(year, month, day);
+            onDateSelect(date);
+            renderCalendar(container, monthYear, date, onDateSelect);
+          });
+        }
+        
+        container.appendChild(dayEl);
+      }
+    }
+
+    // Update month/year display
+    function updateMonthYear(monthYearEl, year, month) {
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                     'July', 'August', 'September', 'October', 'November', 'December'];
+      monthYearEl.textContent = `${months[month]} ${year}`;
+    }
+
+    // Check if date is within 1 year back
+    function isDateValid(date) {
+      const today = new Date();
+      const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+      return date >= oneYearAgo && date <= today;
+    }
+
+    // Navigation handlers
+    startPrevBtn.addEventListener('click', () => {
+      const newDate = new Date(startCalendarDate);
+      newDate.setMonth(newDate.getMonth() - 1);
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      if (newDate >= oneYearAgo) {
+        startCalendarDate = newDate;
+        updateMonthYear(startMonthYear, startCalendarDate.getFullYear(), startCalendarDate.getMonth());
+        renderCalendar(startDaysContainer, 
+          [startCalendarDate.getFullYear(), startCalendarDate.getMonth()], 
+          selectedStartDate, 
+          (date) => { 
+            if (isDateValid(date)) selectedStartDate = date; 
+          });
+      }
+    });
+
+    startNextBtn.addEventListener('click', () => {
+      const newDate = new Date(startCalendarDate);
+      newDate.setMonth(newDate.getMonth() + 1);
+      const today = new Date();
+      if (newDate <= today) {
+        startCalendarDate = newDate;
+        updateMonthYear(startMonthYear, startCalendarDate.getFullYear(), startCalendarDate.getMonth());
+        renderCalendar(startDaysContainer, 
+          [startCalendarDate.getFullYear(), startCalendarDate.getMonth()], 
+          selectedStartDate, 
+          (date) => { 
+            if (isDateValid(date)) selectedStartDate = date; 
+          });
+      }
+    });
+
+    endPrevBtn.addEventListener('click', () => {
+      const newDate = new Date(endCalendarDate);
+      newDate.setMonth(newDate.getMonth() - 1);
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      if (newDate >= oneYearAgo) {
+        endCalendarDate = newDate;
+        updateMonthYear(endMonthYear, endCalendarDate.getFullYear(), endCalendarDate.getMonth());
+        renderCalendar(endDaysContainer, 
+          [endCalendarDate.getFullYear(), endCalendarDate.getMonth()], 
+          selectedEndDate, 
+          (date) => { 
+            if (isDateValid(date)) selectedEndDate = date; 
+          });
+      }
+    });
+
+    endNextBtn.addEventListener('click', () => {
+      const newDate = new Date(endCalendarDate);
+      newDate.setMonth(newDate.getMonth() + 1);
+      const today = new Date();
+      if (newDate <= today) {
+        endCalendarDate = newDate;
+        updateMonthYear(endMonthYear, endCalendarDate.getFullYear(), endCalendarDate.getMonth());
+        renderCalendar(endDaysContainer, 
+          [endCalendarDate.getFullYear(), endCalendarDate.getMonth()], 
+          selectedEndDate, 
+          (date) => { 
+            if (isDateValid(date)) selectedEndDate = date; 
+          });
+      }
+    });
+
+    // Open calendar
+    function openCalendar(inputEl) {
+      currentPickerInput = inputEl;
+      
+      // Find the form-control parent
+      const formControl = inputEl.closest('.form-control');
+      if (formControl) {
+        // Move overlay to form-control if not already there
+        if (overlay.parentElement !== formControl) {
+          formControl.appendChild(overlay);
+        }
+      }
+      
+      // Get current values from the separate inputs
+      const startInput = document.getElementById('backtest-start');
+      const endInput = document.getElementById('backtest-end');
+      const startValue = startInput?.value || '';
+      const endValue = endInput?.value || '';
+      
+      // Parse start date
+      if (startValue) {
+        const date = new Date(startValue);
+        if (!isNaN(date.getTime())) {
+          selectedStartDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+          startCalendarDate = new Date(date.getFullYear(), date.getMonth(), 1);
+        }
+      } else {
+        // Default to 30 days ago
+        const defaultDate = new Date(Date.now() - 30 * 86400000);
+        selectedStartDate = new Date(defaultDate.getFullYear(), defaultDate.getMonth(), defaultDate.getDate());
+        startCalendarDate = new Date(defaultDate.getFullYear(), defaultDate.getMonth(), 1);
+      }
+      
+      // Parse end date
+      if (endValue) {
+        const date = new Date(endValue);
+        if (!isNaN(date.getTime())) {
+          selectedEndDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+          endCalendarDate = new Date(date.getFullYear(), date.getMonth(), 1);
+        }
+      } else {
+        // Default to 7 days ago
+        const defaultDate = new Date(Date.now() - 7 * 86400000);
+        selectedEndDate = new Date(defaultDate.getFullYear(), defaultDate.getMonth(), defaultDate.getDate());
+        endCalendarDate = new Date(defaultDate.getFullYear(), defaultDate.getMonth(), 1);
+      }
+
+      // Render both calendars
+      updateMonthYear(startMonthYear, startCalendarDate.getFullYear(), startCalendarDate.getMonth());
+      updateMonthYear(endMonthYear, endCalendarDate.getFullYear(), endCalendarDate.getMonth());
+      
+      renderCalendar(startDaysContainer, 
+        [startCalendarDate.getFullYear(), startCalendarDate.getMonth()], 
+        selectedStartDate, 
+        (date) => { selectedStartDate = date; });
+      
+      renderCalendar(endDaysContainer, 
+        [endCalendarDate.getFullYear(), endCalendarDate.getMonth()], 
+        selectedEndDate, 
+        (date) => { selectedEndDate = date; });
+
+      overlay.classList.add('visible');
+    }
+
+    // Close calendar
+    function closeCalendar() {
+      overlay.classList.remove('visible');
+      currentPickerInput = null;
+      // Move overlay back to body when closed
+      if (overlay.parentElement && overlay.parentElement !== document.body) {
+        document.body.appendChild(overlay);
+      }
+    }
+
+    // Confirm selection
+    confirmBtn.addEventListener('click', () => {
+      if (!selectedStartDate || !selectedEndDate) {
+        return;
+      }
+      
+      const startFormatted = selectedStartDate.toISOString().slice(0, 10);
+      const endFormatted = selectedEndDate.toISOString().slice(0, 10);
+      
+      // Update the hidden inputs
+      const startInput = document.getElementById('backtest-start');
+      const endInput = document.getElementById('backtest-end');
+      if (startInput) startInput.value = startFormatted;
+      if (endInput) endInput.value = endFormatted;
+      
+      // Update the date range display field
+      if (currentPickerInput) {
+        currentPickerInput.value = `${startFormatted} → ${endFormatted}`;
+      }
+      
+      closeCalendar();
+    });
+
+    // Cancel/Close
+    cancelBtn.addEventListener('click', closeCalendar);
+    closeBtn.addEventListener('click', closeCalendar);
+    
+    // Close when clicking outside
+    document.addEventListener('click', (e) => {
+      if (overlay.classList.contains('visible')) {
+        const clickedInside = overlay.contains(e.target) || 
+                              (currentPickerInput && currentPickerInput.contains(e.target));
+        if (!clickedInside) {
+          closeCalendar();
+        }
+      }
+    });
+
+    // Attach to date range input
+    const dateRangeInput = document.getElementById('backtest-date-range');
+    if (dateRangeInput) {
+      dateRangeInput.addEventListener('click', () => openCalendar(dateRangeInput));
+    }
+    
+    // Also attach to old date inputs for backward compatibility
+    document.querySelectorAll('.date-picker-input').forEach(input => {
+      if (input.id !== 'backtest-date-range') {
+        input.addEventListener('click', () => openCalendar(input));
+      }
+    });
+  }
+
   function initPerformance() {
-    const yesterday = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
-    const today = new Date().toISOString().slice(0, 10);
-    document.getElementById('backtest-start').value = yesterday;
-    document.getElementById('backtest-end').value = today;
+    // Initialize calendar picker
+    initCalendarPicker();
+
+    // Default to 30 days ago to 7 days ago (historical data ESPN has)
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+    const startInput = document.getElementById('backtest-start');
+    const endInput = document.getElementById('backtest-end');
+    const rangeInput = document.getElementById('backtest-date-range');
+    
+    if (startInput) startInput.value = thirtyDaysAgo;
+    if (endInput) endInput.value = sevenDaysAgo;
+    if (rangeInput) rangeInput.value = `${thirtyDaysAgo} → ${sevenDaysAgo}`;
+    
     document.getElementById('backtest-sports').value = (state.config.sports || []).join(',');
 
     document.querySelectorAll('#performance-source-toggle .pill-btn').forEach((btn) => {
       btn.addEventListener('click', () => fetchPerformance(btn.dataset.source));
     });
 
-    const backtestForm = document.getElementById('backtest-form');
-    backtestForm?.addEventListener('submit', (e) => {
-      e.preventDefault();
+    // Reset Log button
+    const resetBtn = document.getElementById('backtest-reset-btn');
+    resetBtn?.addEventListener('click', () => {
+      if (backtestChart) {
+        backtestChart.data.labels = [];
+        backtestChart.data.datasets[0].data = [];
+        backtestChart.update();
+      }
+      document.getElementById('backtest-chart-pnl').textContent = '$0.00';
+      updateBacktestSummary({});
+      document.getElementById('backtest-history-body').innerHTML = '<tr><td colspan="6" class="muted">No backtests yet.</td></tr>';
+    });
+
+    // Function to get backtest payload
+    function getBacktestPayload() {
       const sports = (document.getElementById('backtest-sports').value || '').split(',').map(s => s.trim()).filter(Boolean);
-      const payload = {
+      return {
         sports: sports.length ? sports : state.config.sports,
         start_date: document.getElementById('backtest-start').value,
         end_date: document.getElementById('backtest-end').value,
         stake: parseFloat(document.getElementById('backtest-stake').value || '10'),
         edge_threshold: parseFloat(document.getElementById('backtest-edge').value || '0.05'),
+        starting_balance: parseFloat(document.getElementById('backtest-starting-balance').value || '1000'),
       };
+    }
+
+    // Run Backtest button
+    const runBtn = document.getElementById('backtest-run-btn');
+    runBtn?.addEventListener('click', () => {
+      const payload = getBacktestPayload();
       runBacktest(payload);
     });
+
+    // Form submit handler (for Enter key)
+    const backtestForm = document.getElementById('backtest-form');
+    backtestForm?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const payload = getBacktestPayload();
+      runBacktest(payload);
+    });
+
+    // Initialize chart
+    initBacktestChart();
 
     fetchPerformance('paper');
     refreshBacktestHistory();

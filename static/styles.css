@@ -164,6 +164,29 @@ button {
   box-shadow: 0 0 20px rgba(212, 175, 55, 0.4);
 }
 
+.secondary-btn {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.secondary-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.2);
+}
+
+.backtest-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
 .tabs {
   display: flex;
   gap: 8px;
@@ -194,16 +217,24 @@ button {
 
 .tab-section {
   padding: 18px 24px 32px;
-  display: none;
+  display: block;
   opacity: 0;
   transform: translateY(8px);
-  transition: opacity 500ms cubic-bezier(0.4, 0, 0.2, 1), transform 500ms cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 0;
+  overflow: hidden;
+  transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), 
+              transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+              max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  visibility: hidden;
 }
 
 .tab-section.active {
-  display: block;
   opacity: 1;
   transform: translateY(0);
+  max-height: 10000px;
+  pointer-events: auto;
+  visibility: visible;
 }
 
 #tab-dashboard {
@@ -258,6 +289,7 @@ button {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
   margin-top: 12px;
+  margin-bottom: 24px;
 }
 
 .stat-card {
@@ -286,21 +318,31 @@ button {
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: 14px;
+  margin-top: 24px;
 }
 
 .data-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   min-width: 700px;
 }
 
 .data-table th,
 .data-table td {
-  padding: 12px 10px;
+  padding: 16px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   font-size: 13px;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', 'Menlo', monospace;
   font-style: normal;
+}
+
+.data-table tbody tr {
+  margin-bottom: 4px;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .data-table th {
@@ -388,12 +430,14 @@ button {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
+  margin-bottom: 24px;
 }
 
 .form-control {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  position: relative;
 }
 
 .form-control.full {
@@ -649,6 +693,87 @@ button {
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 14px;
+  position: relative;
+}
+
+.performance-chart-wrapper canvas {
+  max-height: 140px !important;
+  height: 140px !important;
+}
+
+/* Backtest status messages */
+.backtest-status {
+  margin-top: 16px;
+  margin-bottom: 24px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  transform: translateY(-10px);
+  max-height: 0;
+  overflow: hidden;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+              transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              margin-top 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              margin-bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+.backtest-status.visible {
+  opacity: 1;
+  transform: translateY(0);
+  max-height: 200px;
+  pointer-events: auto;
+}
+
+.backtest-status.running {
+  background: rgba(var(--accent-rgb), 0.15);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
+  color: var(--accent);
+}
+
+.backtest-status.success {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #10b981;
+}
+
+.backtest-status.error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.backtest-status .spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.backtest-status .progress-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.backtest-status .progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
 }
 
 .performance-chart-header {
@@ -892,10 +1017,16 @@ button {
   font-style: italic;
   display: block;
   width: 100%;
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.uplink-error-msg:empty {
-  display: none;
+.uplink-error-msg:not(:empty) {
+  opacity: 1;
+  max-height: 100px;
 }
 
 /* Ticker Body */
@@ -1110,6 +1241,81 @@ button {
   border-color: #ff6b6b;
   color: #0a0a00;
   box-shadow: 0 0 20px rgba(255, 107, 107, 0.4);
+}
+
+/* Backtest button active state - same as engine button */
+#backtest-run-btn.engine-active {
+  background: #ffd060;
+  border-color: #ffd060;
+  color: #0a0a00;
+  animation: flicker-on 0.6s ease-out forwards;
+}
+
+#backtest-run-btn.engine-active:hover {
+  background: #ff6b6b;
+  border-color: #ff6b6b;
+  color: #0a0a00;
+  box-shadow: 0 0 20px rgba(255, 107, 107, 0.4);
+}
+
+/* Backtest panel hover and running effects */
+#backtest-panel {
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+#backtest-panel:hover {
+  border-color: rgba(212, 175, 55, 0.4);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 0 20px rgba(212, 175, 55, 0.1);
+}
+
+#backtest-panel.engine-running {
+  position: relative;
+  overflow: visible;
+  border-color: rgba(212, 175, 55, 0.3);
+}
+
+#backtest-panel.engine-running::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 18px;
+  padding: 2px;
+  background: conic-gradient(from var(--tracer-angle, 0deg),
+      transparent 0deg,
+      transparent 345deg,
+      #d4af37 352deg,
+      #ffd060 356deg,
+      #d4af37 360deg);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: tracer-rotate 4.5s linear infinite;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Backtest chart wrapper */
+.backtest-chart-wrapper {
+  margin-top: 0;
+  margin-bottom: 24px;
+  background: rgba(6, 6, 10, 0.9);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  position: relative;
+}
+
+.backtest-chart-wrapper canvas {
+  max-height: 180px !important;
+  height: 180px !important;
+}
+
+.backtest-chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
 }
 
 /* Flicker effects for buttons */
@@ -1420,4 +1626,284 @@ button:active {
   .opp-matchup {
     grid-column: 1 / -1;
   }
+}
+
+/* iOS 26 Style Liquid Glass Calendar Picker */
+.calendar-overlay {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  width: max-content;
+  min-width: 700px;
+  max-width: 90vw;
+  margin-bottom: 8px;
+  background: transparent;
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  display: block;
+  z-index: 10000;
+  opacity: 0;
+  transform: translateY(10px) scale(0.95);
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+              transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.calendar-overlay.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.calendar-picker {
+  width: 100%;
+  min-width: 700px;
+  max-width: 90vw;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(40px) saturate(200%);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 20px;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+    0 1px 0 rgba(255, 255, 255, 0.2) inset;
+  overflow: hidden;
+  max-height: 60vh;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.calendar-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: -0.5px;
+}
+
+.calendar-close {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 32px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.calendar-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.calendar-body {
+  position: relative;
+  padding: 20px;
+  display: flex;
+  gap: 20px;
+  max-height: 65vh;
+  overflow-y: auto;
+}
+
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+
+.calendar-nav-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: #fff;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.calendar-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(212, 175, 55, 0.4);
+}
+
+.calendar-month-year {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+
+.calendar-grid {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 8px;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  margin-bottom: 6px;
+}
+
+.calendar-weekday {
+  text-align: center;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 600;
+  padding: 6px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.calendar-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  font-weight: 500;
+  position: relative;
+  min-height: 32px;
+}
+
+.calendar-day:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.calendar-day.other-month {
+  color: rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+}
+
+.calendar-day.today {
+  border: 1px solid rgba(212, 175, 55, 0.4);
+}
+
+.calendar-day.selected {
+  background: linear-gradient(135deg, #d4af37 0%, #ffd060 100%);
+  color: #0a0a00;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(212, 175, 55, 0.3);
+}
+
+.calendar-day.selected:hover {
+  background: linear-gradient(135deg, #ffd060 0%, #ffeb3b 100%);
+}
+
+.calendar-date-section {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.calendar-date-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 10px;
+  font-weight: 600;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.calendar-footer {
+  display: flex;
+  gap: 12px;
+  padding: 20px 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.calendar-btn {
+  flex: 1;
+  padding: 14px 24px;
+  border: none;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Advent Pro', sans-serif;
+  font-style: italic;
+}
+
+.calendar-btn-cancel {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.calendar-btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.calendar-btn-confirm {
+  background: linear-gradient(135deg, #d4af37 0%, #ffd060 100%);
+  color: #0a0a00;
+  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.3);
+}
+
+.calendar-btn-confirm:hover {
+  background: linear-gradient(135deg, #ffd060 0%, #ffeb3b 100%);
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.4);
+  transform: translateY(-1px);
+}
+
+.date-picker-input {
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.2s ease;
+}
+
+.date-picker-input:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(212, 175, 55, 0.3);
+}
+
+.date-picker-input:focus {
+  outline: none;
+  border-color: rgba(212, 175, 55, 0.5);
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.2);
 }

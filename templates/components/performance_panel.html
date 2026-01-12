@@ -60,38 +60,18 @@
   </div>
 </div>
 
-<div class="panel">
+<div class="panel" id="backtest-panel">
   <div class="panel-header">
     <div>
-      <h3 class="section-title">Run Backtest</h3>
+      <h3 class="section-title">Backtesting Center</h3>
       <p class="hint">Replay games with ESPN outcomes</p>
     </div>
+    <div class="backtest-actions">
+      <button type="button" class="secondary-btn" id="backtest-reset-btn">Reset Log</button>
+      <button type="button" class="primary-btn" id="backtest-run-btn">Run Backtest</button>
+    </div>
   </div>
-  <form id="backtest-form" class="form-grid">
-    <div class="form-control">
-      <label>Sports (comma separated)</label>
-      <input type="text" id="backtest-sports" placeholder="NBA,NFL,NHL" />
-    </div>
-    <div class="form-control">
-      <label>Start Date (YYYY-MM-DD)</label>
-      <input type="text" id="backtest-start" />
-    </div>
-    <div class="form-control">
-      <label>End Date (YYYY-MM-DD)</label>
-      <input type="text" id="backtest-end" />
-    </div>
-    <div class="form-control">
-      <label>Stake per bet ($)</label>
-      <input type="number" id="backtest-stake" step="1" min="1" value="10" />
-    </div>
-    <div class="form-control">
-      <label>Edge Threshold</label>
-      <input type="number" id="backtest-edge" step="0.01" min="0" max="1" value="0.05" />
-    </div>
-    <div class="form-actions">
-      <button type="submit" class="primary-btn" id="backtest-run-btn">Run Backtest</button>
-    </div>
-  </form>
+  <div id="backtest-status" class="backtest-status"></div>
 
   <div class="stats-grid" id="backtest-kpis">
     <div class="stat-card">
@@ -111,14 +91,50 @@
       <div class="stat-value" id="bt-roi">--</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Sharpe</div>
-      <div class="stat-value" id="bt-sharpe">--</div>
+      <div class="stat-label">Ending Balance</div>
+      <div class="stat-value" id="bt-ending-balance">--</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Max Drawdown</div>
       <div class="stat-value" id="bt-dd">--</div>
     </div>
   </div>
+
+  <div class="backtest-chart-wrapper">
+    <div class="backtest-chart-header">
+      <div>
+        <div class="chart-label">Cumulative P&L</div>
+        <div class="chart-value" id="backtest-chart-pnl">$0.00</div>
+      </div>
+    </div>
+    <canvas id="backtest-chart" height="180"></canvas>
+  </div>
+
+  <form id="backtest-form" class="form-grid">
+    <div class="form-control">
+      <label>Sports (comma separated)</label>
+      <input type="text" id="backtest-sports" placeholder="NBA,NFL,NHL" />
+    </div>
+    <div class="form-control">
+      <label>Date Range</label>
+      <input type="text" id="backtest-date-range" class="date-picker-input" data-picker="range" readonly placeholder="Select date range" />
+      <input type="hidden" id="backtest-start" />
+      <input type="hidden" id="backtest-end" />
+    </div>
+    <div class="form-control">
+      <label>Stake per bet ($)</label>
+      <input type="number" id="backtest-stake" step="1" min="1" value="10" />
+    </div>
+    <div class="form-control">
+      <label>Edge Threshold</label>
+      <input type="number" id="backtest-edge" step="0.01" min="0" max="1" value="0.05" />
+    </div>
+    <div class="form-control">
+      <label>Starting Balance ($)</label>
+      <input type="number" id="backtest-starting-balance" step="1" min="1" value="1000" />
+      <p class="hint" style="margin-top: 4px; font-size: 0.75rem; opacity: 0.7;">Initial bankroll for simulation</p>
+    </div>
+  </form>
 
   <div class="table-wrapper compact">
     <table class="data-table">
