@@ -949,7 +949,9 @@
           if (isToday) dayEl.classList.add('today');
           if (isSelected) dayEl.classList.add('selected');
           
-          dayEl.addEventListener('click', () => {
+          dayEl.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
             const date = new Date(year, month, day);
             onDateSelect(date);
             renderCalendar(container, monthYear, date, onDateSelect);
@@ -1194,12 +1196,20 @@
     // Close when clicking outside
     document.addEventListener('click', (e) => {
       if (overlay.classList.contains('visible')) {
+        // Check if click is inside the calendar overlay or picker
+        const calendarPicker = overlay.querySelector('.calendar-picker');
         const clickedInside = overlay.contains(e.target) || 
+                              calendarPicker?.contains(e.target) ||
                               (currentPickerInput && currentPickerInput.contains(e.target));
         if (!clickedInside) {
           closeCalendar();
         }
       }
+    });
+    
+    // Prevent clicks inside calendar from closing it
+    overlay.addEventListener('click', (e) => {
+      e.stopPropagation();
     });
 
     // Attach to date range input
