@@ -857,8 +857,10 @@
       // Render individual trades instead of history
       renderBacktestTrades(data.trades || []);
       
-      // Update chart with backtest data
-      updateBacktestChart(data.trades || [], payload.starting_balance || 1000);
+      // Update chart with backtest data (with small delay to ensure DOM is ready)
+      setTimeout(() => {
+        updateBacktestChart(data.trades || [], payload.starting_balance || 1000);
+      }, 100);
       
       const trades = data.trades?.length || 0;
       const pnl = data.summary?.pnl?.toFixed(2) || '0.00';
@@ -888,9 +890,19 @@
   
   function initBacktestChart() {
     const ctx = document.getElementById('backtest-chart');
-    if (!ctx) return;
+    if (!ctx) {
+      console.error('Backtest chart canvas element not found');
+      return;
+    }
     
-    backtestChart = new Chart(ctx, {
+    // Destroy existing chart if it exists
+    if (backtestChart) {
+      backtestChart.destroy();
+      backtestChart = null;
+    }
+    
+    try {
+      backtestChart = new Chart(ctx, {
       type: 'line',
       data: {
         labels: [],
@@ -962,12 +974,21 @@
         }
       }
     });
+    } catch (error) {
+      console.error('Error initializing backtest chart:', error);
+      backtestChart = null;
+    }
   }
   
   function updateBacktestChart(trades, startingBalance) {
+    // Ensure chart is initialized
     if (!backtestChart) {
-      console.error('Backtest chart not initialized');
-      return;
+      console.warn('Chart not initialized, initializing now...');
+      initBacktestChart();
+      if (!backtestChart) {
+        console.error('Failed to initialize backtest chart');
+        return;
+      }
     }
     
     if (!trades || !trades.length) {
@@ -982,65 +1003,96 @@
       return;
     }
     
-    // Sort trades by timestamp
-    const sortedTrades = [...trades].sort((a, b) => {
-      const tsA = a.timestamp || 0;
-      const tsB = b.timestamp || 0;
-      return tsA - tsB;
-    });
-    
-    // Calculate cumulative balance
-    let cumulativeBalance = startingBalance || 1000;
-    const labels = [];
-    const data = [cumulativeBalance]; // Start with initial balance
-    
-    // Add initial point with start date (if available from form)
-    const startDateInput = document.getElementById('backtest-start');
-    if (startDateInput?.value) {
-      try {
-        const startDate = new Date(startDateInput.value);
-        labels.push(startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-      } catch (e) {
+    try {
+      // Sort trades by timestamp
+      const sortedTrades = [...trades].sort((a, b) => {
+        const tsA = a.timestamp || 0;
+        const tsB = b.timestamp || 0;
+        return tsA - tsB;
+      });
+      
+      // Calculate cumulative balance
+      let cumulativeBalance = parseFloat(startingBalance) || 1000;
+      const labels = [];
+      const data = [cumulativeBalance]; // Start with initial balance
+      
+      // Add initial point with start date (if available from form)
+      const startDateInput = document.getElementById('backtest-start');
+      if (startDateInput?.value) {
+        try {
+          const startDate = new Date(startDateInput.value);
+          if (!isNaN(startDate.getTime())) {
+            labels.push(startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+          } else {
+            labels.push('Start');
+          }
+        } catch (e) {
+          console.warn('Error parsing start date:', e);
+          labels.push('Start');
+        }
+      } else {
         labels.push('Start');
       }
-    } else {
-      labels.push('Start');
-    }
-    
-    sortedTrades.forEach((trade) => {
-      cumulativeBalance += parseFloat(trade.pnl || 0);
-      try {
-        const timestamp = trade.timestamp ? (trade.timestamp * 1000) : Date.now();
-        const date = new Date(timestamp);
-        labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-      } catch (e) {
-        labels.push('Trade');
+      
+      sortedTrades.forEach((trade, index) => {
+        const pnl = parseFloat(trade.pnl || 0);
+        cumulativeBalance += pnl;
+        try {
+          let timestamp;
+          if (trade.timestamp) {
+            // Handle both seconds and milliseconds timestamps
+            timestamp = trade.timestamp < 10000000000 ? trade.timestamp * 1000 : trade.timestamp;
+          } else {
+            // Use index as fallback for ordering
+            timestamp = Date.now() + (index * 1000);
+          }
+          const date = new Date(timestamp);
+          if (!isNaN(date.getTime())) {
+            labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+          } else {
+            labels.push(`Trade ${index + 1}`);
+          }
+        } catch (e) {
+          console.warn('Error parsing trade timestamp:', e, trade);
+          labels.push(`Trade ${index + 1}`);
+        }
+        data.push(cumulativeBalance);
+      });
+      
+      // Calculate min/max for auto-scaling with 10% padding
+      const minValue = Math.min(...data);
+      const maxValue = Math.max(...data);
+      const range = maxValue - minValue;
+      const padding = Math.max(range * 0.1, Math.abs(minValue) * 0.1, 50);
+      
+      // Update chart with auto-scaled Y-axis
+      backtestChart.data.labels = labels;
+      backtestChart.data.datasets[0].data = data;
+      
+      // Set min/max with proper handling
+      if (minValue !== Infinity && maxValue !== -Infinity && !isNaN(minValue) && !isNaN(maxValue)) {
+        backtestChart.options.scales.y.min = minValue - padding;
+        backtestChart.options.scales.y.max = maxValue + padding;
+      } else {
+        // Fallback: use default scaling
+        backtestChart.options.scales.y.min = undefined;
+        backtestChart.options.scales.y.max = undefined;
       }
-      data.push(cumulativeBalance);
-    });
-    
-    // Calculate min/max for auto-scaling with 10% padding
-    const minValue = Math.min(...data);
-    const maxValue = Math.max(...data);
-    const range = maxValue - minValue;
-    const padding = Math.max(range * 0.1, Math.abs(minValue) * 0.1, 50);
-    
-    // Update chart with auto-scaled Y-axis
-    backtestChart.data.labels = labels;
-    backtestChart.data.datasets[0].data = data;
-    
-    // Set min/max with proper handling
-    if (minValue !== Infinity && maxValue !== -Infinity) {
-      backtestChart.options.scales.y.min = minValue - padding;
-      backtestChart.options.scales.y.max = maxValue + padding;
+      
+      // Force chart update
+      backtestChart.update('active');
+      
+      // Update chart header value (final balance)
+      const finalBalance = data[data.length - 1];
+      const pnlEl = document.getElementById('backtest-chart-pnl');
+      if (pnlEl) {
+        pnlEl.textContent = fmt.currency(finalBalance);
+      }
+      
+      console.log('Chart updated successfully:', { trades: trades.length, dataPoints: data.length, finalBalance });
+    } catch (error) {
+      console.error('Error updating backtest chart:', error, { trades, startingBalance });
     }
-    
-    backtestChart.update('active');
-    
-    // Update chart header value (final balance)
-    const finalBalance = data[data.length - 1];
-    const pnlEl = document.getElementById('backtest-chart-pnl');
-    if (pnlEl) pnlEl.textContent = fmt.currency(finalBalance);
   }
 
   // iOS 26 Style Calendar Picker
