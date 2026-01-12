@@ -97,8 +97,8 @@
       </div>
     </div>
     <div class="calendar-footer">
-      <button class="calendar-btn calendar-btn-cancel" id="calendar-cancel">Cancel</button>
-      <button class="calendar-btn calendar-btn-confirm" id="calendar-confirm">Done</button>
+      <button type="button" class="calendar-btn calendar-btn-cancel" id="calendar-cancel">Cancel</button>
+      <button type="button" class="calendar-btn calendar-btn-confirm" id="calendar-confirm">Done</button>
     </div>
   </div>
 </div>
@@ -1276,7 +1276,10 @@
     }
 
     // Confirm selection
-    confirmBtn.addEventListener('click', () => {
+    confirmBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
       if (!selectedStartDate || !selectedEndDate) {
         return;
       }
@@ -1289,9 +1292,13 @@
       const endInput = document.getElementById('backtest-end');
       const dateChanged = startInput?.value !== startFormatted || endInput?.value !== endFormatted;
       
-      // Update the hidden inputs
-      if (startInput) startInput.value = startFormatted;
-      if (endInput) endInput.value = endFormatted;
+      // Update the hidden inputs (without triggering events)
+      if (startInput) {
+        startInput.value = startFormatted;
+      }
+      if (endInput) {
+        endInput.value = endFormatted;
+      }
       
       // Update the date range display field
       if (currentPickerInput) {
@@ -1307,8 +1314,16 @@
     });
 
     // Cancel/Close
-    cancelBtn.addEventListener('click', closeCalendar);
-    closeBtn.addEventListener('click', closeCalendar);
+    cancelBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeCalendar();
+    });
+    closeBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeCalendar();
+    });
     
     // Close when clicking outside
     document.addEventListener('click', (e) => {
