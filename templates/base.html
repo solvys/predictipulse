@@ -16,13 +16,13 @@
 
 <body class="dark">
   <div class="scanline-overlay"></div>
-  {% block content %}{% endblock %}
   <script>
     const fmt = {
       currency: (v) => `$${Number(v || 0).toFixed(2)}`,
       pct: (v) => `${Number(v || 0).toFixed(1)}%`,
     };
   </script>
+  {% block content %}{% endblock %}
   {% block scripts %}{% endblock %}
 </body>
 
