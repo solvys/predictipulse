@@ -1,0 +1,29 @@
+<div class="ticker-card" id="ticker-coinbase">
+  <div class="ticker-header">
+    <div class="ticker-header-row">
+      <span class="ticker-name">Coinbase Tracker</span>
+      <span id="coinbase-uplink-status-pill" class="ticker-tag status-pill">Uplink Status</span>
+      <button id="coinbase-uplink-btn" class="uplink-btn-header">Uplink</button>
+    </div>
+    <div class="uplink-error-row">
+      <span id="coinbase-uplink-error-msg" class="uplink-error-msg"></span>
+    </div>
+  </div>
+  <div class="ticker-body">
+    <div class="ticker-stat">
+      <span class="ticker-label">STATUS</span>
+      <span id="coinbase-status" class="status-indicator status-off">
+        Awaiting API
+      </span>
+    </div>
+    <div class="ticker-stat">
+      <span class="ticker-label">BALANCE</span>
+      <span id="coinbase-bankroll" class="ticker-value">$0.00</span>
+    </div>
+    <div class="ticker-actions">
+      <button id="coinbase-start-btn" class="ticker-btn" disabled title="Coinbase API not yet available">
+        Start
+      </button>
+    </div>
+  </div>
+</div>

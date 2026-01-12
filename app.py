@@ -114,6 +114,107 @@ def api_uplink():
         return jsonify({"connected": False, "error": str(e)})
 
 
+# ---------------------------------------------------------------------------
+# Coinbase API Routes
+# ---------------------------------------------------------------------------
+@app.route("/api/coinbase/account", methods=["GET"])
+def api_coinbase_account():
+    """Get Coinbase account info."""
+    try:
+        stats = engine.get_coinbase_stats()
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({"error": str(e), "bankroll": 0, "connected": False})
+
+
+@app.route("/api/coinbase/markets", methods=["GET"])
+def api_coinbase_markets():
+    """Get available Coinbase prediction markets."""
+    try:
+        markets = engine._fetch_coinbase_markets()
+        return jsonify({"markets": markets, "count": len(markets)})
+    except Exception as e:
+        return jsonify({"markets": [], "count": 0, "error": str(e)})
+
+
+@app.route("/api/coinbase/uplink", methods=["POST"])
+def api_coinbase_uplink():
+    """Check Coinbase API connection status."""
+    try:
+        result = engine.check_coinbase_connection()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"connected": False, "error": str(e), "balance": 0})
+
+
+@app.route("/api/coinbase/trade", methods=["POST"])
+def api_coinbase_trade():
+    """Execute a trade on Coinbase (placeholder - API not yet available)."""
+    data: Dict[str, Any] = request.get_json(force=True) or {}
+    ticker = data.get("ticker")
+    side = data.get("side", "yes")
+    price = data.get("price", 50)
+    size = data.get("size", 1)
+    
+    if not ticker:
+        return jsonify({"success": False, "error": "Missing ticker"}), 400
+    
+    try:
+        if engine.coinbase_client:
+            order = engine.coinbase_client.place_order(
+                ticker=ticker,
+                side=side,
+                price=price,
+                size=size,
+            )
+            if order:
+                return jsonify({"success": True, "order": {
+                    "order_id": order.order_id,
+                    "ticker": order.ticker,
+                    "side": order.side,
+                    "price": order.price,
+                    "size": order.size,
+                    "status": order.status,
+                }})
+            else:
+                return jsonify({
+                    "success": False,
+                    "error": "Order not placed - Coinbase API not yet available"
+                })
+        else:
+            return jsonify({
+                "success": False,
+                "error": "Coinbase client not initialized"
+            })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/coinbase/positions", methods=["GET"])
+def api_coinbase_positions():
+    """Get Coinbase open positions."""
+    try:
+        if engine.coinbase_client:
+            positions = engine.coinbase_client.get_positions()
+            return jsonify({"positions": positions, "count": len(positions)})
+        return jsonify({"positions": [], "count": 0, "error": "Client not initialized"})
+    except Exception as e:
+        return jsonify({"positions": [], "count": 0, "error": str(e)})
+
+
+@app.route("/api/coinbase/trades", methods=["GET"])
+def api_coinbase_trades():
+    """Get Coinbase trade history."""
+    try:
+        limit = request.args.get("limit", 50, type=int)
+        if engine.coinbase_client:
+            trades = engine.coinbase_client.get_trades(limit=limit)
+            return jsonify({"trades": trades, "count": len(trades)})
+        return jsonify({"trades": [], "count": 0, "error": "Client not initialized"})
+    except Exception as e:
+        return jsonify({"trades": [], "count": 0, "error": str(e)})
+
+
 @app.route("/api/trades", methods=["GET"])
 def api_trades():
     return jsonify(engine.get_recent_trades(50))
@@ -147,6 +248,7 @@ def api_backtest():
     end_date = payload.get("end_date") or datetime.utcnow().date().isoformat()
     stake = float(payload.get("stake") or 10.0)
     edge_threshold = float(payload.get("edge_threshold") or 0.05)
+    starting_balance = float(payload.get("starting_balance") or 1000.0)
 
     result = backtest_engine.run_backtest(
         sports=sports,
@@ -154,6 +256,7 @@ def api_backtest():
         end_date=end_date,
         stake=stake,
         edge_threshold=edge_threshold,
+        starting_balance=starting_balance,
     )
     backtest_id = f"bt-{int(time.time())}"
     performance_tracker.store_backtest(

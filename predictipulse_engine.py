@@ -14,6 +14,7 @@ from queue import SimpleQueue, Empty
 from typing import Any, Dict, List, Optional
 
 from kalshi_adapter import KalshiClient
+from coinbase_adapter import CoinbaseClient
 from performance_tracker import PerformanceTracker
 from boltodds_adapter import BoltOddsClient, american_to_prob
 
@@ -63,10 +64,17 @@ class PredictipulseEngine:
         self._live_mode = not demo_mode
         self.kalshi_client: Optional[KalshiClient] = None
         self.boltodds_client: Optional[BoltOddsClient] = None
+        self.coinbase_client: Optional[CoinbaseClient] = None
+        
+        # Coinbase-specific stats (separate from Kalshi)
+        self._coinbase_bankroll = 0.0
+        self._coinbase_initial_bankroll = 0.0
+        self._coinbase_pnl = 0.0
 
         if self._live_mode:
             self._init_kalshi_client()
             self._init_boltodds_client()
+            self._init_coinbase_client()
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -197,15 +205,20 @@ class PredictipulseEngine:
                     boltodds_games = self._fetch_boltodds_games()
                     boltodds_markets = self._fetch_boltodds_markets()
                     kalshi_markets = self._fetch_kalshi_sports_markets()
+                    coinbase_markets = self._fetch_coinbase_markets()
                     
                     games_count = len(boltodds_games) if isinstance(boltodds_games, dict) else 0
-                    self._emit_log("INFO", f"BoltOdds: {games_count} games | Kalshi: {len(kalshi_markets)} markets")
+                    self._emit_log(
+                        "INFO",
+                        f"BoltOdds: {games_count} games | Kalshi: {len(kalshi_markets)} markets | "
+                        f"Coinbase: {len(coinbase_markets)} markets"
+                    )
                     
                     # Parse sharp odds from BoltOdds
                     sharp_games = self._parse_sharp_odds(boltodds_games, boltodds_markets)
                     
                     # Find arbitrage/+EV opportunities
-                    opportunities = self._find_opportunities(sharp_games, kalshi_markets)
+                    opportunities = self._find_opportunities(sharp_games, kalshi_markets, coinbase_markets)
                     
                     # Emit opportunities to the dashboard
                     for opp in opportunities:
@@ -554,23 +567,31 @@ class PredictipulseEngine:
         self,
         boltodds_games: List[Dict[str, Any]],
         kalshi_markets: List[Dict[str, Any]],
+        coinbase_markets: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Match BoltOdds sharp odds against Kalshi market prices to find +EV opportunities.
+        Match BoltOdds sharp odds against prediction market prices to find +EV opportunities.
         
         An opportunity exists when:
-        - Sharp probability > Kalshi implied probability (buy YES)
-        - Sharp probability < Kalshi implied probability (buy NO)
+        - Sharp probability > market implied probability (buy YES)
+        - Sharp probability < market implied probability (buy NO)
         - Edge exceeds target_buy_ev threshold
+        
+        Checks both Kalshi and Coinbase markets.
         """
         opportunities = []
         target_ev = float(self.config.get("target_buy_ev", 0.05))
         min_prob = float(self.config.get("min_true_prob", 0.15))
         max_prob = float(self.config.get("max_true_prob", 0.85))
         
-        # For now, emit available Kalshi markets as potential opportunities
+        # Combine all prediction markets
+        all_markets = list(kalshi_markets)
+        if coinbase_markets:
+            all_markets.extend(coinbase_markets)
+        
+        # For now, emit available markets as potential opportunities
         # Real matching would require team name normalization between platforms
-        for market in kalshi_markets:
+        for market in all_markets:
             yes_price = market.get("yes_price", 0)
             if yes_price <= 0:
                 continue
@@ -586,6 +607,9 @@ class PredictipulseEngine:
             # In production, this would come from matching BoltOdds games
             estimated_sharp_prob = market_prob  # Placeholder - no edge yet
             
+            # Determine source (kalshi or coinbase)
+            source = market.get("source", "kalshi")
+            
             opp = {
                 "matchup": market.get("title", market.get("ticker", "")),
                 "team": market.get("subtitle", "YES"),
@@ -593,9 +617,10 @@ class PredictipulseEngine:
                 "true_prob": estimated_sharp_prob,
                 "market_prob": market_prob,
                 "edge": (estimated_sharp_prob - market_prob) * 100,
-                "kalshi_ticker": market.get("ticker"),
-                "kalshi_yes_price": yes_price,
+                "ticker": market.get("ticker"),
+                "yes_price": yes_price,
                 "volume": market.get("volume", 0),
+                "source": source,
                 "timestamp": time.time(),
             }
             
@@ -617,6 +642,93 @@ class PredictipulseEngine:
             opportunities.append(opp)
         
         return opportunities
+
+    # ------------------------------------------------------------------
+    # Coinbase Integration
+    # ------------------------------------------------------------------
+    def _init_coinbase_client(self) -> None:
+        """Initialize Coinbase Prediction Markets client."""
+        api_key = self.config.get("coinbase_api_key", "")
+        api_secret = self.config.get("coinbase_api_secret", "")
+        
+        if not api_key or not api_secret:
+            self._emit_log("INFO", "Coinbase credentials not configured (API not yet available).")
+            return
+        
+        try:
+            self.coinbase_client = CoinbaseClient(
+                api_key=api_key,
+                api_secret=api_secret,
+            )
+            self._refresh_coinbase_account()
+            self._emit_log("INFO", "Coinbase client initialized (awaiting API availability).")
+        except Exception as exc:
+            self._emit_log("WARNING", f"Coinbase init failed: {exc}")
+
+    def _refresh_coinbase_account(self) -> None:
+        """Refresh Coinbase account balance and positions."""
+        if not self.coinbase_client:
+            return
+        try:
+            balance = self.coinbase_client.get_balance()
+            balance_cents = balance.get("balance") or balance.get("available") or 0
+            self._coinbase_bankroll = round(float(balance_cents) / 100, 2)
+            if not self._coinbase_initial_bankroll:
+                self._coinbase_initial_bankroll = self._coinbase_bankroll
+            self._coinbase_pnl = round(self._coinbase_bankroll - self._coinbase_initial_bankroll, 2)
+        except Exception as exc:
+            self._emit_log("WARNING", f"Coinbase sync failed: {exc}")
+
+    def check_coinbase_connection(self) -> Dict[str, Any]:
+        """Check if Coinbase API connection is working."""
+        if not self.coinbase_client:
+            return {
+                "connected": False,
+                "error": "Coinbase client not initialized - add credentials to config",
+                "balance": 0,
+            }
+        try:
+            result = self.coinbase_client.check_connection()
+            if result.get("connected"):
+                self._emit_log("INFO", f"Coinbase uplink successful. Balance: ${result.get('balance', 0):.2f}")
+            else:
+                self._emit_log("INFO", f"Coinbase uplink: {result.get('message', result.get('error', 'Not available'))}")
+            return result
+        except Exception as exc:
+            self._emit_log("WARNING", f"Coinbase uplink failed: {exc}")
+            return {"connected": False, "error": str(exc), "balance": 0}
+
+    def _fetch_coinbase_markets(self) -> List[Dict[str, Any]]:
+        """Fetch sports markets from Coinbase."""
+        if not self.coinbase_client:
+            return []
+        try:
+            markets = self.coinbase_client.get_sports_markets()
+            return [
+                {
+                    "ticker": m.ticker,
+                    "title": m.title,
+                    "subtitle": m.subtitle,
+                    "yes_price": m.yes_price,
+                    "no_price": m.no_price,
+                    "volume": m.volume,
+                    "category": m.category,
+                    "source": "coinbase",
+                }
+                for m in markets
+            ]
+        except Exception as exc:
+            self._emit_log("WARNING", f"Coinbase markets fetch failed: {exc}")
+            return []
+
+    def get_coinbase_stats(self) -> Dict[str, Any]:
+        """Get Coinbase-specific stats."""
+        return {
+            "bankroll": round(self._coinbase_bankroll, 2),
+            "initial_bankroll": self._coinbase_initial_bankroll,
+            "total_pnl": round(self._coinbase_pnl, 2),
+            "connected": self.coinbase_client is not None,
+        }
 
     # ------------------------------------------------------------------
     # Logging

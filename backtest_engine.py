@@ -28,6 +28,7 @@ class BacktestEngine:
         end_date: str,
         stake: float = 10.0,
         edge_threshold: float = 0.05,
+        starting_balance: float = 1000.0,
     ) -> Dict[str, Any]:
         start = _parse_date(start_date)
         end = _parse_date(end_date)
@@ -69,18 +70,20 @@ class BacktestEngine:
                     }
                 )
 
-        summary = self._summarize(trades)
+        summary = self._summarize(trades, starting_balance)
         return {"summary": summary, "trades": trades}
 
-    def _summarize(self, trades: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _summarize(self, trades: List[Dict[str, Any]], starting_balance: float = 1000.0) -> Dict[str, Any]:
         pnl_total = sum(t["pnl"] for t in trades)
         wins = len([t for t in trades if t["pnl"] > 0])
         losses = len([t for t in trades if t["pnl"] < 0])
         stakes = sum(t["stake"] for t in trades)
-        roi = (pnl_total / stakes * 100) if stakes else 0.0
+        # ROI based on starting balance
+        roi = (pnl_total / starting_balance * 100) if starting_balance > 0 else 0.0
         returns = [t["pnl"] / t["stake"] for t in trades if t["stake"]]
         sharpe = (sum(returns) / len(returns)) / (self._stddev(returns) or 1) if returns else 0.0
-        max_drawdown = self._max_drawdown([t["pnl"] for t in trades])
+        max_drawdown = self._max_drawdown([t["pnl"] for t in trades], starting_balance)
+        ending_balance = starting_balance + pnl_total
 
         return {
             "trades": len(trades),
@@ -91,6 +94,7 @@ class BacktestEngine:
             "roi": round(roi, 2),
             "sharpe": round(sharpe, 3),
             "max_drawdown": round(max_drawdown, 2),
+            "ending_balance": round(ending_balance, 2),
         }
 
     @staticmethod
@@ -103,9 +107,9 @@ class BacktestEngine:
         return math.sqrt(variance)
 
     @staticmethod
-    def _max_drawdown(pnls: List[float]) -> float:
-        balance = 0.0
-        peak = 0.0
+    def _max_drawdown(pnls: List[float], starting_balance: float = 1000.0) -> float:
+        balance = starting_balance
+        peak = starting_balance
         max_dd = 0.0
         for pnl in pnls:
             balance += pnl

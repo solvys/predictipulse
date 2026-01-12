@@ -44,6 +44,65 @@
   </div>
 </div>
 
+<!-- iOS 26 Style Calendar Picker -->
+<div id="calendar-picker-overlay" class="calendar-overlay">
+  <div class="calendar-picker">
+    <div class="calendar-header">
+      <button type="button" class="calendar-close" id="calendar-close">×</button>
+      <h3 class="calendar-title">Select Date Range</h3>
+    </div>
+    <div class="calendar-body">
+      <!-- Start Date Calendar -->
+      <div class="calendar-date-section">
+        <div class="calendar-date-label">Start Date</div>
+        <div class="calendar-nav">
+          <button type="button" class="calendar-nav-btn" id="start-prev-month">‹</button>
+          <div class="calendar-month-year" id="start-month-year">January 2025</div>
+          <button type="button" class="calendar-nav-btn" id="start-next-month">›</button>
+        </div>
+        <div class="calendar-grid" id="start-calendar-grid">
+          <div class="calendar-weekdays">
+            <div class="calendar-weekday">S</div>
+            <div class="calendar-weekday">M</div>
+            <div class="calendar-weekday">T</div>
+            <div class="calendar-weekday">W</div>
+            <div class="calendar-weekday">T</div>
+            <div class="calendar-weekday">F</div>
+            <div class="calendar-weekday">S</div>
+          </div>
+          <div class="calendar-days" id="start-calendar-days"></div>
+        </div>
+      </div>
+      
+      <!-- End Date Calendar -->
+      <div class="calendar-date-section">
+        <div class="calendar-date-label">End Date</div>
+        <div class="calendar-nav">
+          <button type="button" class="calendar-nav-btn" id="end-prev-month">‹</button>
+          <div class="calendar-month-year" id="end-month-year">January 2025</div>
+          <button type="button" class="calendar-nav-btn" id="end-next-month">›</button>
+        </div>
+        <div class="calendar-grid" id="end-calendar-grid">
+          <div class="calendar-weekdays">
+            <div class="calendar-weekday">S</div>
+            <div class="calendar-weekday">M</div>
+            <div class="calendar-weekday">T</div>
+            <div class="calendar-weekday">W</div>
+            <div class="calendar-weekday">T</div>
+            <div class="calendar-weekday">F</div>
+            <div class="calendar-weekday">S</div>
+          </div>
+          <div class="calendar-days" id="end-calendar-days"></div>
+        </div>
+      </div>
+    </div>
+    <div class="calendar-footer">
+      <button type="button" class="calendar-btn calendar-btn-cancel" id="calendar-cancel">Cancel</button>
+      <button type="button" class="calendar-btn calendar-btn-confirm" id="calendar-confirm">Done</button>
+    </div>
+  </div>
+</div>
+
 <script>
   // ==========================================================================
   // STATE
@@ -53,6 +112,12 @@
       running: {{ 'true' if running else 'false' }},
       bankroll: {{ stats.bankroll }},
       pnl: {{ stats.total_pnl }},
+    },
+    coinbase: {
+      running: false,
+      bankroll: 0,
+      pnl: 0,
+      connected: false,
     },
     config: {{ config | tojson }},
     stats: {{ stats | tojson }},
@@ -492,6 +557,96 @@
   });
 
   // ==========================================================================
+  // COINBASE UPLINK BUTTON
+  // ==========================================================================
+  const coinbaseUplinkBtn = document.getElementById('coinbase-uplink-btn');
+  const coinbaseUplinkStatusPill = document.getElementById('coinbase-uplink-status-pill');
+  const coinbaseUplinkErrorMsg = document.getElementById('coinbase-uplink-error-msg');
+  const coinbaseBankroll = document.getElementById('coinbase-bankroll');
+  const coinbaseStatus = document.getElementById('coinbase-status');
+  const coinbaseStartBtn = document.getElementById('coinbase-start-btn');
+
+  function setCoinbaseUplinkBtnState(btnState) {
+    if (!coinbaseUplinkBtn) return;
+    coinbaseUplinkBtn.classList.remove('checking', 'connected', 'disconnected');
+    if (btnState) coinbaseUplinkBtn.classList.add(btnState);
+  }
+
+  coinbaseUplinkBtn?.addEventListener('click', async () => {
+    // Set checking state
+    coinbaseUplinkStatusPill.className = 'ticker-tag status-pill checking';
+    coinbaseUplinkStatusPill.textContent = 'Checking...';
+    coinbaseUplinkErrorMsg.textContent = '';
+    setCoinbaseUplinkBtnState('checking');
+    coinbaseUplinkBtn.disabled = true;
+
+    try {
+      const res = await fetch('/api/coinbase/uplink', { method: 'POST' });
+      const data = await res.json();
+
+      if (data.connected) {
+        coinbaseUplinkStatusPill.className = 'ticker-tag status-pill connected';
+        coinbaseUplinkStatusPill.textContent = 'Connected';
+        coinbaseUplinkErrorMsg.textContent = '';
+        setCoinbaseUplinkBtnState('connected');
+        state.coinbase.connected = true;
+        // Add blue border effect for uplink connected
+        document.getElementById('ticker-coinbase').classList.add('uplink-connected');
+        // Update balance if returned
+        if (data.balance !== undefined) {
+          state.coinbase.bankroll = data.balance;
+          coinbaseBankroll.textContent = `$${data.balance.toFixed(2)}`;
+        }
+        // Update status
+        coinbaseStatus.textContent = 'Ready';
+        coinbaseStatus.classList.remove('status-off');
+        coinbaseStatus.classList.add('status-on');
+      } else {
+        coinbaseUplinkStatusPill.className = 'ticker-tag status-pill disconnected';
+        coinbaseUplinkStatusPill.textContent = 'Disconnected';
+        coinbaseUplinkErrorMsg.textContent = data.message || data.error || 'Connection failed';
+        setCoinbaseUplinkBtnState('disconnected');
+        state.coinbase.connected = false;
+        // Remove blue border effect
+        document.getElementById('ticker-coinbase').classList.remove('uplink-connected');
+        // Update status
+        coinbaseStatus.textContent = 'Awaiting API';
+        coinbaseStatus.classList.remove('status-on');
+        coinbaseStatus.classList.add('status-off');
+      }
+    } catch (err) {
+      coinbaseUplinkStatusPill.className = 'ticker-tag status-pill disconnected';
+      coinbaseUplinkStatusPill.textContent = 'Error';
+      coinbaseUplinkErrorMsg.textContent = err.message || 'Network error';
+      setCoinbaseUplinkBtnState('disconnected');
+      state.coinbase.connected = false;
+      // Remove blue border effect
+      document.getElementById('ticker-coinbase')?.classList.remove('uplink-connected');
+    } finally {
+      coinbaseUplinkBtn.disabled = false;
+    }
+  });
+
+  // Fetch initial Coinbase stats
+  async function fetchCoinbaseStats() {
+    try {
+      const res = await fetch('/api/coinbase/account');
+      const data = await res.json();
+      state.coinbase.bankroll = data.bankroll || 0;
+      state.coinbase.pnl = data.total_pnl || 0;
+      state.coinbase.connected = data.connected || false;
+      if (coinbaseBankroll) {
+        coinbaseBankroll.textContent = `$${(data.bankroll || 0).toFixed(2)}`;
+      }
+    } catch (err) {
+      console.warn('Failed to fetch Coinbase stats:', err);
+    }
+  }
+
+  // Initial fetch
+  fetchCoinbaseStats();
+
+  // ==========================================================================
   // STATS UPDATER
   // ==========================================================================
   function updateStats(stats) {
@@ -610,13 +765,60 @@
   }
 
   // Backtest UI helpers
+  function clearBacktestData() {
+    // Clear summary
+    updateBacktestSummary({});
+    
+    // Clear trades table
+    const tradesBody = document.getElementById('backtest-trades-body');
+    if (tradesBody) {
+      tradesBody.innerHTML = '<tr><td colspan="8" class="muted">No trades yet. Run a backtest to see results.</td></tr>';
+    }
+    
+    // Clear status
+    hideBacktestStatus();
+  }
+
   function updateBacktestSummary(summary = {}) {
     document.getElementById('bt-trades').textContent = summary.trades ?? '--';
     document.getElementById('bt-winrate').textContent = summary.win_rate !== undefined ? fmt.pct(summary.win_rate) : '--';
     document.getElementById('bt-pnl').textContent = summary.pnl !== undefined ? fmt.currency(summary.pnl) : '--';
     document.getElementById('bt-roi').textContent = summary.roi !== undefined ? fmt.pct(summary.roi) : '--';
-    document.getElementById('bt-sharpe').textContent = summary.sharpe ?? '--';
+    document.getElementById('bt-ending-balance').textContent = summary.ending_balance !== undefined ? fmt.currency(summary.ending_balance) : '--';
     document.getElementById('bt-dd').textContent = summary.max_drawdown !== undefined ? fmt.currency(summary.max_drawdown) : '--';
+  }
+
+  function renderBacktestTrades(trades = []) {
+    const body = document.getElementById('backtest-trades-body');
+    if (!body) return;
+    
+    body.innerHTML = '';
+    if (!trades.length) {
+      body.innerHTML = '<tr><td colspan="7" class="muted">No trades yet. Run a backtest to see results.</td></tr>';
+      return;
+    }
+    
+    // Sort trades by timestamp
+    const sortedTrades = [...trades].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    
+    sortedTrades.forEach((trade) => {
+      const tr = document.createElement('tr');
+      const date = trade.timestamp ? new Date(trade.timestamp * 1000).toLocaleString() : '--';
+      const resultClass = trade.result === 'WIN' ? 'positive' : trade.result === 'LOSS' ? 'negative' : '';
+      const pnlClass = trade.pnl >= 0 ? 'positive' : 'negative';
+      
+      tr.innerHTML = `
+        <td>${date}</td>
+        <td>${trade.sport || '--'}</td>
+        <td>${trade.matchup || '--'}</td>
+        <td>${trade.team || '--'}</td>
+        <td>${trade.edge !== undefined ? fmt.pct(trade.edge / 100) : '--'}</td>
+        <td>${trade.stake !== undefined ? fmt.currency(trade.stake) : '--'}</td>
+        <td class="${resultClass}">${trade.result || '--'}</td>
+        <td class="${pnlClass}">${trade.pnl !== undefined ? fmt.currency(trade.pnl) : '--'}</td>
+      `;
+      body.appendChild(tr);
+    });
   }
 
   function renderBacktestHistory(rows = []) {
@@ -648,52 +850,549 @@
     renderBacktestHistory(rows);
   }
 
+  function updateBacktestStatus(type, message, progress = null) {
+    const status = document.getElementById('backtest-status');
+    if (!status) return;
+    
+    status.className = 'backtest-status visible ' + type;
+    
+    if (type === 'running' && progress !== null) {
+      status.innerHTML = `
+        <div class="spinner"></div>
+        <span>${message}</span>
+        <div class="progress-bar">
+          <div class="progress-bar-fill" style="width: ${progress}%"></div>
+        </div>
+        <span>${progress}%</span>
+      `;
+    } else if (type === 'running') {
+      status.innerHTML = `<div class="spinner"></div><span>${message}</span>`;
+    } else {
+      status.innerHTML = `<span>${message}</span>`;
+    }
+  }
+
+  function hideBacktestStatus() {
+    const status = document.getElementById('backtest-status');
+    if (status) {
+      status.className = 'backtest-status';
+    }
+  }
+
   async function runBacktest(payload) {
     const btn = document.getElementById('backtest-run-btn');
+    const panel = document.getElementById('backtest-panel');
+    const wasRunning = btn.classList.contains('engine-active');
+    
     btn.disabled = true;
     btn.textContent = 'Running...';
-    try {
+    btn.classList.add('engine-active');
+    panel?.classList.add('engine-running');
+    
+    // Add flicker effect
+    btn.classList.remove('flicker-on', 'flicker-off');
+    btn.classList.add('flicker-on');
+    setTimeout(() => btn.classList.remove('flicker-on'), 600);
+    
+      // Clear all previous data (one-session persistent)
+      clearBacktestData();
+      
+      updateBacktestStatus('running', 'Initializing backtest...');
+      
+      try {
+      // Validate dates
+      const startDate = new Date(payload.start_date);
+      const endDate = new Date(payload.end_date);
+      const today = new Date();
+      
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        throw new Error('Invalid date format. Use YYYY-MM-DD.');
+      }
+      
+      if (startDate > today || endDate > today) {
+        throw new Error('Dates must be in the past. ESPN only has historical data.');
+      }
+      
+      if (startDate > endDate) {
+        throw new Error('Start date must be before end date.');
+      }
+      
+      updateBacktestStatus('running', `Fetching ${payload.sports.join(', ')} games from ESPN...`, 10);
+      
       const res = await fetch('/api/backtest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+      
+      updateBacktestStatus('running', 'Processing response...', 70);
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Server error (${res.status}): ${errorText}`);
+      }
+      
       const data = await res.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      updateBacktestStatus('running', 'Updating results...', 90);
+      
       updateBacktestSummary(data.summary || {});
-      await refreshBacktestHistory();
+      
+      // Render individual trades instead of history
+      renderBacktestTrades(data.trades || []);
+      
+      const trades = data.trades?.length || 0;
+      const pnl = data.summary?.pnl?.toFixed(2) || '0.00';
+      updateBacktestStatus('success', `✓ Backtest complete: ${trades} trades, $${pnl} P&L`);
+      
+      // Auto-hide success message after 5 seconds
+      setTimeout(hideBacktestStatus, 5000);
+      
+    } catch (err) {
+      console.error('Backtest error:', err);
+      updateBacktestStatus('error', `✗ ${err.message}`);
     } finally {
       btn.disabled = false;
       btn.textContent = 'Run Backtest';
+      btn.classList.remove('engine-active');
+      panel?.classList.remove('engine-running');
+      
+      // Add flicker-off effect
+      btn.classList.remove('flicker-on', 'flicker-off');
+      btn.classList.add('flicker-off');
+      setTimeout(() => btn.classList.remove('flicker-off'), 600);
     }
   }
 
+  // iOS 26 Style Calendar Picker
+  let currentPickerInput = null;
+  let startCalendarDate = new Date();
+  let endCalendarDate = new Date();
+  let selectedStartDate = null;
+  let selectedEndDate = null;
+
+  function initCalendarPicker() {
+    const overlay = document.getElementById('calendar-picker-overlay');
+    const confirmBtn = document.getElementById('calendar-confirm');
+    const cancelBtn = document.getElementById('calendar-cancel');
+    const closeBtn = document.getElementById('calendar-close');
+    
+    if (!overlay || !confirmBtn || !cancelBtn || !closeBtn) {
+      console.error('Calendar picker elements not found');
+      return;
+    }
+    
+    // Calendar elements
+    const startDaysContainer = document.getElementById('start-calendar-days');
+    const endDaysContainer = document.getElementById('end-calendar-days');
+    const startMonthYear = document.getElementById('start-month-year');
+    const endMonthYear = document.getElementById('end-month-year');
+    const startPrevBtn = document.getElementById('start-prev-month');
+    const startNextBtn = document.getElementById('start-next-month');
+    const endPrevBtn = document.getElementById('end-prev-month');
+    const endNextBtn = document.getElementById('end-next-month');
+    
+    if (!startDaysContainer || !endDaysContainer || !startMonthYear || !endMonthYear || 
+        !startPrevBtn || !startNextBtn || !endPrevBtn || !endNextBtn) {
+      console.error('Calendar picker sub-elements not found');
+      return;
+    }
+
+    // Render calendar grid
+    function renderCalendar(container, monthYear, selectedDate, onDateSelect) {
+      container.innerHTML = '';
+      const [year, month] = monthYear;
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const startDayOfWeek = firstDay.getDay();
+      const daysInMonth = lastDay.getDate();
+      const today = new Date();
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      
+      // Add empty cells for days before month starts
+      for (let i = 0; i < startDayOfWeek; i++) {
+        const empty = document.createElement('div');
+        empty.className = 'calendar-day other-month';
+        container.appendChild(empty);
+      }
+      
+      // Add days of the month
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dayEl = document.createElement('div');
+        dayEl.className = 'calendar-day';
+        dayEl.textContent = day;
+        dayEl.dataset.day = day;
+        dayEl.dataset.month = month;
+        dayEl.dataset.year = year;
+        
+        const cellDate = new Date(year, month, day);
+        const isToday = cellDate.toDateString() === today.toDateString();
+        const isSelected = selectedDate && 
+          cellDate.getFullYear() === selectedDate.getFullYear() &&
+          cellDate.getMonth() === selectedDate.getMonth() &&
+          cellDate.getDate() === selectedDate.getDate();
+        const isValid = cellDate >= oneYearAgo && cellDate <= today;
+        
+        if (!isValid) {
+          dayEl.classList.add('other-month');
+          dayEl.style.pointerEvents = 'none';
+        } else {
+          if (isToday) dayEl.classList.add('today');
+          if (isSelected) dayEl.classList.add('selected');
+          
+          dayEl.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const date = new Date(year, month, day);
+            onDateSelect(date);
+            renderCalendar(container, monthYear, date, onDateSelect);
+          });
+        }
+        
+        container.appendChild(dayEl);
+      }
+    }
+
+    // Update month/year display
+    function updateMonthYear(monthYearEl, year, month) {
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                     'July', 'August', 'September', 'October', 'November', 'December'];
+      monthYearEl.textContent = `${months[month]} ${year}`;
+    }
+
+    // Check if date is within 1 year back
+    function isDateValid(date) {
+      const today = new Date();
+      const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+      return date >= oneYearAgo && date <= today;
+    }
+
+    // Navigation handlers
+    startPrevBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const newDate = new Date(startCalendarDate);
+      newDate.setMonth(newDate.getMonth() - 1);
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      if (newDate >= oneYearAgo) {
+        startCalendarDate = newDate;
+        updateMonthYear(startMonthYear, startCalendarDate.getFullYear(), startCalendarDate.getMonth());
+        renderCalendar(startDaysContainer, 
+          [startCalendarDate.getFullYear(), startCalendarDate.getMonth()], 
+          selectedStartDate, 
+          (date) => { 
+            if (isDateValid(date)) selectedStartDate = date; 
+          });
+      }
+    });
+
+    startNextBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const newDate = new Date(startCalendarDate);
+      newDate.setMonth(newDate.getMonth() + 1);
+      const today = new Date();
+      if (newDate <= today) {
+        startCalendarDate = newDate;
+        updateMonthYear(startMonthYear, startCalendarDate.getFullYear(), startCalendarDate.getMonth());
+        renderCalendar(startDaysContainer, 
+          [startCalendarDate.getFullYear(), startCalendarDate.getMonth()], 
+          selectedStartDate, 
+          (date) => { 
+            if (isDateValid(date)) selectedStartDate = date; 
+          });
+      }
+    });
+
+    endPrevBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const newDate = new Date(endCalendarDate);
+      newDate.setMonth(newDate.getMonth() - 1);
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      if (newDate >= oneYearAgo) {
+        endCalendarDate = newDate;
+        updateMonthYear(endMonthYear, endCalendarDate.getFullYear(), endCalendarDate.getMonth());
+        renderCalendar(endDaysContainer, 
+          [endCalendarDate.getFullYear(), endCalendarDate.getMonth()], 
+          selectedEndDate, 
+          (date) => { 
+            if (isDateValid(date)) selectedEndDate = date; 
+          });
+      }
+    });
+
+    endNextBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const newDate = new Date(endCalendarDate);
+      newDate.setMonth(newDate.getMonth() + 1);
+      const today = new Date();
+      if (newDate <= today) {
+        endCalendarDate = newDate;
+        updateMonthYear(endMonthYear, endCalendarDate.getFullYear(), endCalendarDate.getMonth());
+        renderCalendar(endDaysContainer, 
+          [endCalendarDate.getFullYear(), endCalendarDate.getMonth()], 
+          selectedEndDate, 
+          (date) => { 
+            if (isDateValid(date)) selectedEndDate = date; 
+          });
+      }
+    });
+
+    // Open calendar
+    function openCalendar(inputEl) {
+      if (!inputEl || !overlay) {
+        console.error('Cannot open calendar: missing input or overlay');
+        return;
+      }
+      
+      currentPickerInput = inputEl;
+      
+      // Find the form-control parent
+      const formControl = inputEl.closest('.form-control');
+      if (formControl) {
+        // Move overlay to form-control if not already there
+        if (overlay.parentElement !== formControl) {
+          formControl.appendChild(overlay);
+        }
+      } else {
+        console.warn('Form control not found for date input, appending to body');
+        if (overlay.parentElement !== document.body) {
+          document.body.appendChild(overlay);
+        }
+      }
+      
+      // Get current values from the separate inputs
+      const startInput = document.getElementById('backtest-start');
+      const endInput = document.getElementById('backtest-end');
+      const startValue = startInput?.value || '';
+      const endValue = endInput?.value || '';
+      
+      // Parse start date
+      if (startValue) {
+        const date = new Date(startValue);
+        if (!isNaN(date.getTime())) {
+          selectedStartDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+          startCalendarDate = new Date(date.getFullYear(), date.getMonth(), 1);
+        }
+      } else {
+        // Default to 30 days ago
+        const defaultDate = new Date(Date.now() - 30 * 86400000);
+        selectedStartDate = new Date(defaultDate.getFullYear(), defaultDate.getMonth(), defaultDate.getDate());
+        startCalendarDate = new Date(defaultDate.getFullYear(), defaultDate.getMonth(), 1);
+      }
+      
+      // Parse end date
+      if (endValue) {
+        const date = new Date(endValue);
+        if (!isNaN(date.getTime())) {
+          selectedEndDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+          endCalendarDate = new Date(date.getFullYear(), date.getMonth(), 1);
+        }
+      } else {
+        // Default to 7 days ago
+        const defaultDate = new Date(Date.now() - 7 * 86400000);
+        selectedEndDate = new Date(defaultDate.getFullYear(), defaultDate.getMonth(), defaultDate.getDate());
+        endCalendarDate = new Date(defaultDate.getFullYear(), defaultDate.getMonth(), 1);
+      }
+
+      // Render both calendars
+      updateMonthYear(startMonthYear, startCalendarDate.getFullYear(), startCalendarDate.getMonth());
+      updateMonthYear(endMonthYear, endCalendarDate.getFullYear(), endCalendarDate.getMonth());
+      
+      renderCalendar(startDaysContainer, 
+        [startCalendarDate.getFullYear(), startCalendarDate.getMonth()], 
+        selectedStartDate, 
+        (date) => { selectedStartDate = date; });
+      
+      renderCalendar(endDaysContainer, 
+        [endCalendarDate.getFullYear(), endCalendarDate.getMonth()], 
+        selectedEndDate, 
+        (date) => { selectedEndDate = date; });
+
+      // Show overlay
+      overlay.classList.add('visible');
+      console.log('Calendar opened', { overlay: overlay.classList.contains('visible') });
+    }
+
+    // Close calendar
+    function closeCalendar() {
+      overlay.classList.remove('visible');
+      currentPickerInput = null;
+      // Move overlay back to body when closed
+      if (overlay.parentElement && overlay.parentElement !== document.body) {
+        document.body.appendChild(overlay);
+      }
+    }
+
+    // Confirm selection
+    confirmBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (!selectedStartDate || !selectedEndDate) {
+        return;
+      }
+      
+      const startFormatted = selectedStartDate.toISOString().slice(0, 10);
+      const endFormatted = selectedEndDate.toISOString().slice(0, 10);
+      
+      // Get current values to check if they changed
+      const startInput = document.getElementById('backtest-start');
+      const endInput = document.getElementById('backtest-end');
+      const dateChanged = startInput?.value !== startFormatted || endInput?.value !== endFormatted;
+      
+      // Update the hidden inputs (without triggering events)
+      if (startInput) {
+        startInput.value = startFormatted;
+      }
+      if (endInput) {
+        endInput.value = endFormatted;
+      }
+      
+      // Update the date range display field
+      const dateRangeDisplay = document.getElementById('backtest-date-range');
+      if (dateRangeDisplay) {
+        dateRangeDisplay.value = `${startFormatted} → ${endFormatted}`;
+      }
+      
+      // Also update currentPickerInput if it exists
+      if (currentPickerInput) {
+        currentPickerInput.value = `${startFormatted} → ${endFormatted}`;
+      }
+      
+      // Clear all backtest data if date range changed
+      if (dateChanged) {
+        clearBacktestData();
+      }
+      
+      closeCalendar();
+    });
+
+    // Cancel/Close
+    cancelBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeCalendar();
+    });
+    closeBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeCalendar();
+    });
+    
+    // Close when clicking outside
+    document.addEventListener('click', (e) => {
+      if (overlay.classList.contains('visible')) {
+        // Check if click is inside the calendar overlay or picker
+        const calendarPicker = overlay.querySelector('.calendar-picker');
+        const clickedInside = overlay.contains(e.target) || 
+                              calendarPicker?.contains(e.target) ||
+                              (currentPickerInput && currentPickerInput.contains(e.target));
+        if (!clickedInside) {
+          closeCalendar();
+        }
+      }
+    });
+    
+    // Prevent clicks inside calendar from closing it
+    overlay.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+
+    // Attach to date range input
+    const dateRangeInput = document.getElementById('backtest-date-range');
+    if (dateRangeInput) {
+      dateRangeInput.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openCalendar(dateRangeInput);
+      });
+      // Also allow focus to open calendar
+      dateRangeInput.addEventListener('focus', (e) => {
+        e.preventDefault();
+        openCalendar(dateRangeInput);
+      });
+    } else {
+      console.warn('Date range input not found');
+    }
+    
+    // Also attach to old date inputs for backward compatibility
+    document.querySelectorAll('.date-picker-input').forEach(input => {
+      if (input.id !== 'backtest-date-range') {
+        input.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openCalendar(input);
+        });
+      }
+    });
+  }
+
   function initPerformance() {
-    const yesterday = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
-    const today = new Date().toISOString().slice(0, 10);
-    document.getElementById('backtest-start').value = yesterday;
-    document.getElementById('backtest-end').value = today;
+    // Initialize calendar picker
+    initCalendarPicker();
+
+    // Default to 30 days ago to 7 days ago (historical data ESPN has)
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+    const startInput = document.getElementById('backtest-start');
+    const endInput = document.getElementById('backtest-end');
+    const rangeInput = document.getElementById('backtest-date-range');
+    
+    if (startInput) startInput.value = thirtyDaysAgo;
+    if (endInput) endInput.value = sevenDaysAgo;
+    if (rangeInput) rangeInput.value = `${thirtyDaysAgo} → ${sevenDaysAgo}`;
+    
     document.getElementById('backtest-sports').value = (state.config.sports || []).join(',');
 
     document.querySelectorAll('#performance-source-toggle .pill-btn').forEach((btn) => {
       btn.addEventListener('click', () => fetchPerformance(btn.dataset.source));
     });
 
-    const backtestForm = document.getElementById('backtest-form');
-    backtestForm?.addEventListener('submit', (e) => {
-      e.preventDefault();
+    // Reset Log button
+    const resetBtn = document.getElementById('backtest-reset-btn');
+    resetBtn?.addEventListener('click', () => {
+      clearBacktestData();
+    });
+
+    // Function to get backtest payload
+    function getBacktestPayload() {
       const sports = (document.getElementById('backtest-sports').value || '').split(',').map(s => s.trim()).filter(Boolean);
-      const payload = {
+      return {
         sports: sports.length ? sports : state.config.sports,
         start_date: document.getElementById('backtest-start').value,
         end_date: document.getElementById('backtest-end').value,
         stake: parseFloat(document.getElementById('backtest-stake').value || '10'),
         edge_threshold: parseFloat(document.getElementById('backtest-edge').value || '0.05'),
+        starting_balance: parseFloat(document.getElementById('backtest-starting-balance').value || '1000'),
       };
+    }
+
+    // Run Backtest button
+    const runBtn = document.getElementById('backtest-run-btn');
+    runBtn?.addEventListener('click', () => {
+      const payload = getBacktestPayload();
+      runBacktest(payload);
+    });
+
+    // Form submit handler (for Enter key)
+    const backtestForm = document.getElementById('backtest-form');
+    backtestForm?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const payload = getBacktestPayload();
       runBacktest(payload);
     });
 
     fetchPerformance('paper');
-    refreshBacktestHistory();
   }
 
   // ==========================================================================
