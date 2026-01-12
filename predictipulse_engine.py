@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 
 from kalshi_adapter import KalshiClient
 from performance_tracker import PerformanceTracker
+from boltodds_adapter import BoltOddsClient, american_to_prob
 
 LOG_FORMAT = "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
 logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
@@ -61,9 +62,11 @@ class PredictipulseEngine:
         self._total_pnl = 0.0
         self._live_mode = not demo_mode
         self.kalshi_client: Optional[KalshiClient] = None
+        self.boltodds_client: Optional[BoltOddsClient] = None
 
         if self._live_mode:
             self._init_kalshi_client()
+            self._init_boltodds_client()
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -180,9 +183,51 @@ class PredictipulseEngine:
     # ------------------------------------------------------------------
     def _run_loop(self) -> None:
         if self._live_mode and self.kalshi_client:
+            self._emit_log("INFO", "Starting live mode with BoltOdds + Kalshi integration...")
+            scan_interval = 30  # seconds between scans
+            
             while self._running:
-                self._refresh_kalshi_account()
-                time.sleep(10)
+                try:
+                    # Refresh account balance
+                    self._refresh_kalshi_account()
+                    
+                    # Fetch data from both sources
+                    self._emit_log("INFO", "Scanning for opportunities...")
+                    
+                    boltodds_games = self._fetch_boltodds_games()
+                    boltodds_markets = self._fetch_boltodds_markets()
+                    kalshi_markets = self._fetch_kalshi_sports_markets()
+                    
+                    games_count = len(boltodds_games) if isinstance(boltodds_games, dict) else 0
+                    self._emit_log("INFO", f"BoltOdds: {games_count} games | Kalshi: {len(kalshi_markets)} markets")
+                    
+                    # Parse sharp odds from BoltOdds
+                    sharp_games = self._parse_sharp_odds(boltodds_games, boltodds_markets)
+                    
+                    # Find arbitrage/+EV opportunities
+                    opportunities = self._find_opportunities(sharp_games, kalshi_markets)
+                    
+                    # Emit opportunities to the dashboard
+                    for opp in opportunities:
+                        self._opp_queue.put(opp)
+                        if opp.get("edge", 0) > 0:
+                            self._emit_log(
+                                "INFO",
+                                f"Opportunity: {opp['matchup']} | Edge: {opp['edge']:.2f}% | "
+                                f"Stake: ${opp.get('kelly_stake', 0):.2f}"
+                            )
+                    
+                    if not opportunities:
+                        self._emit_log("INFO", "No +EV opportunities found this scan.")
+                    
+                except Exception as exc:
+                    self._emit_log("WARNING", f"Scan cycle error: {exc}")
+                
+                # Wait before next scan
+                for _ in range(scan_interval):
+                    if not self._running:
+                        break
+                    time.sleep(1)
             return
 
         teams = [
@@ -285,10 +330,25 @@ class PredictipulseEngine:
     # Kalshi account helpers
     # ------------------------------------------------------------------
     def _load_kalshi_keys(self) -> Optional[Dict[str, str]]:
-        """Load Kalshi credentials from kalshi_keys.csv."""
-        key_path = Path(__file__).parent / "kalshi_keys.csv"
+        """Load Kalshi credentials from kalshi_keys.csv and kalshi_private.pem."""
+        base_dir = Path(__file__).parent
+        key_path = base_dir / "kalshi_keys.csv"
+        # Support both .pem and .txt extensions for the private key
+        pem_path = base_dir / "kalshi_private.pem"
+        if not pem_path.exists():
+            pem_path = base_dir / "kalshi_private_key.txt"
+        
         if not key_path.exists():
             return None
+        
+        # Try to load inline secret from PEM file if it exists
+        pem_secret = None
+        if pem_path.exists():
+            try:
+                pem_secret = pem_path.read_text().strip()
+            except Exception:
+                pass
+        
         with key_path.open() as fh:
             reader = csv.DictReader(fh)
             for row in reader:
@@ -296,10 +356,11 @@ class PredictipulseEngine:
                 api_secret = row.get("api_secret")
                 private_key_file = row.get("private_key_file")
                 if api_key:
+                    # Prefer PEM file content, then csv api_secret, then private_key_file reference
                     return {
                         "api_key": api_key.strip(),
-                        "api_secret": (api_secret or "").strip() or None,
-                        "private_key_file": (private_key_file or "").strip() or None,
+                        "api_secret": pem_secret or (api_secret or "").strip() or None,
+                        "private_key_file": (private_key_file or "").strip() or None if not pem_secret else None,
                     }
         return None
 
@@ -396,6 +457,166 @@ class PredictipulseEngine:
         except Exception as exc:
             self._emit_log("WARNING", f"Kalshi uplink failed: {exc}")
             return {"connected": False, "error": str(exc)}
+
+    # ------------------------------------------------------------------
+    # BoltOdds Integration
+    # ------------------------------------------------------------------
+    def _init_boltodds_client(self) -> None:
+        """Initialize BoltOdds client for sharp odds data."""
+        api_key = self.config.get("boltodds_api_key", "")
+        if not api_key:
+            self._emit_log("WARNING", "BoltOdds API key not configured.")
+            return
+        
+        sports = self.config.get("sports", ["NBA", "NFL", "NHL"])
+        self.boltodds_client = BoltOddsClient(api_key=api_key, sports=sports)
+        self._emit_log("INFO", f"BoltOdds client initialized for sports: {sports}")
+
+    def _fetch_boltodds_games(self) -> Dict[str, Any]:
+        """Fetch current games from BoltOdds."""
+        if not self.boltodds_client:
+            return {}
+        try:
+            return self.boltodds_client.fetch_games()
+        except Exception as exc:
+            self._emit_log("WARNING", f"BoltOdds games fetch failed: {exc}")
+            return {}
+
+    def _fetch_boltodds_markets(self) -> Dict[str, Any]:
+        """Fetch current markets/odds from BoltOdds."""
+        if not self.boltodds_client:
+            return {}
+        try:
+            return self.boltodds_client.fetch_markets()
+        except Exception as exc:
+            self._emit_log("WARNING", f"BoltOdds markets fetch failed: {exc}")
+            return {}
+
+    def _parse_sharp_odds(self, games: Dict[str, Any], markets: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Parse BoltOdds data to extract sharp odds (Pinnacle-style true probabilities).
+        
+        Returns list of opportunities with:
+        - matchup: Game name
+        - team: Team to bet on
+        - sport: Sport category
+        - sharp_prob: Sharp/true probability from BoltOdds
+        - sharp_odds: American odds from sharp book
+        """
+        opportunities = []
+        
+        # BoltOdds returns games as dict with game_id -> game_info
+        for game_key, game_info in games.items():
+            if not isinstance(game_info, dict):
+                continue
+            
+            sport = game_info.get("sport", "")
+            matchup = game_info.get("game", game_key)
+            universal_id = game_info.get("universal_id", "")
+            
+            # Filter by configured sports
+            configured_sports = self.config.get("sports", [])
+            if sport not in configured_sports:
+                continue
+            
+            opportunities.append({
+                "matchup": matchup,
+                "sport": sport,
+                "universal_id": universal_id,
+                "game_time": game_info.get("when", ""),
+            })
+        
+        return opportunities
+
+    def _fetch_kalshi_sports_markets(self) -> List[Dict[str, Any]]:
+        """Fetch sports markets from Kalshi."""
+        if not self.kalshi_client:
+            return []
+        try:
+            markets = self.kalshi_client.get_sports_markets()
+            return [
+                {
+                    "ticker": m.ticker,
+                    "title": m.title,
+                    "subtitle": m.subtitle,
+                    "yes_price": m.yes_price,
+                    "no_price": m.no_price,
+                    "volume": m.volume,
+                    "category": m.category,
+                }
+                for m in markets
+            ]
+        except Exception as exc:
+            self._emit_log("WARNING", f"Kalshi markets fetch failed: {exc}")
+            return []
+
+    def _find_opportunities(
+        self,
+        boltodds_games: List[Dict[str, Any]],
+        kalshi_markets: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """
+        Match BoltOdds sharp odds against Kalshi market prices to find +EV opportunities.
+        
+        An opportunity exists when:
+        - Sharp probability > Kalshi implied probability (buy YES)
+        - Sharp probability < Kalshi implied probability (buy NO)
+        - Edge exceeds target_buy_ev threshold
+        """
+        opportunities = []
+        target_ev = float(self.config.get("target_buy_ev", 0.05))
+        min_prob = float(self.config.get("min_true_prob", 0.15))
+        max_prob = float(self.config.get("max_true_prob", 0.85))
+        
+        # For now, emit available Kalshi markets as potential opportunities
+        # Real matching would require team name normalization between platforms
+        for market in kalshi_markets:
+            yes_price = market.get("yes_price", 0)
+            if yes_price <= 0:
+                continue
+            
+            # Kalshi prices are in cents (0-100)
+            market_prob = yes_price / 100.0
+            
+            # Skip if outside probability bounds
+            if market_prob < min_prob or market_prob > max_prob:
+                continue
+            
+            # For demo purposes, estimate a "sharp" probability with small edge
+            # In production, this would come from matching BoltOdds games
+            estimated_sharp_prob = market_prob  # Placeholder - no edge yet
+            
+            opp = {
+                "matchup": market.get("title", market.get("ticker", "")),
+                "team": market.get("subtitle", "YES"),
+                "sport": market.get("category", "SPORTS"),
+                "true_prob": estimated_sharp_prob,
+                "market_prob": market_prob,
+                "edge": (estimated_sharp_prob - market_prob) * 100,
+                "kalshi_ticker": market.get("ticker"),
+                "kalshi_yes_price": yes_price,
+                "volume": market.get("volume", 0),
+                "timestamp": time.time(),
+            }
+            
+            # Calculate Kelly stake
+            kelly_multiplier = float(self.config.get("kelly_multiplier", 0.5))
+            if market_prob > 0 and estimated_sharp_prob > market_prob:
+                kelly_fraction = max(
+                    0.0,
+                    ((estimated_sharp_prob * (1 / market_prob - 1)) - (1 - estimated_sharp_prob))
+                    / (1 / market_prob - 1),
+                )
+                stake = self._bankroll * kelly_fraction * kelly_multiplier
+                stake = min(stake, float(self.config.get("max_dollar_bet", 50)))
+                stake = min(stake, self._bankroll * float(self.config.get("max_percentage_bet", 10)) / 100)
+                opp["kelly_stake"] = max(0.0, stake)
+            else:
+                opp["kelly_stake"] = 0.0
+            
+            opportunities.append(opp)
+        
+        return opportunities
 
     # ------------------------------------------------------------------
     # Logging

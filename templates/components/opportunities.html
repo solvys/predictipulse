@@ -1,10 +1,10 @@
-<section class="panel">
+<section class="panel opportunities-panel">
   <div class="panel-header">
     <h2 class="section-title">Live Opportunities</h2>
     <div class="panel-header-right">
       <span class="hint">Streaming in real time</span>
       <div class="table-filters">
-        <input type="text" id="opp-search" placeholder="Search matchup or team..." />
+        <input type="text" id="opp-search" placeholder="Search matchup or position..." />
         <select id="opp-sport-filter">
           <option value="">All Sports</option>
           <option value="nba">NBA</option>
@@ -20,24 +20,9 @@
       </div>
     </div>
   </div>
-  <div class="table-wrapper">
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Matchup</th>
-          <th>Team</th>
-          <th>True Prob</th>
-          <th>Market Prob</th>
-          <th>Edge %</th>
-          <th>Kelly Stake</th>
-          <th>Timestamp</th>
-        </tr>
-      </thead>
-      <tbody id="opportunities-body">
-        <tr>
-          <td colspan="7" class="muted">Waiting for opportunities...</td>
-        </tr>
-      </tbody>
-    </table>
+  <div class="opportunities-kanban" id="opportunities-kanban">
+    <div class="opp-empty-state">
+      <span class="muted">Waiting for opportunities...</span>
+    </div>
   </div>
 </section>

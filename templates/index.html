@@ -7,6 +7,7 @@
 
     <div class="tabs">
       <button class="tab active" data-tab="dashboard">Dashboard</button>
+      <button class="tab" data-tab="opportunities">Opportunities</button>
       <button class="tab" data-tab="trades">Trades</button>
       <button class="tab" data-tab="config">Config</button>
       <button class="tab" data-tab="logs">Logs</button>
@@ -15,6 +16,13 @@
 
     <div class="tab-section active" id="tab-dashboard">
       {% include "components/stats_cards.html" %}
+      <div class="dashboard-split">
+        {% include "components/opportunities.html" %}
+        {% include "components/trades_table.html" %}
+      </div>
+    </div>
+
+    <div class="tab-section" id="tab-opportunities">
       {% include "components/opportunities.html" %}
     </div>
 
@@ -340,6 +348,7 @@
   const tabs = document.querySelectorAll('.tab');
   const sections = {
     dashboard: document.getElementById('tab-dashboard'),
+    opportunities: document.getElementById('tab-opportunities'),
     trades: document.getElementById('tab-trades'),
     config: document.getElementById('tab-config'),
     logs: document.getElementById('tab-logs'),
@@ -785,29 +794,63 @@
         return (b.timestamp || 0) - (a.timestamp || 0);
       });
 
-    oppBody.innerHTML = '';
-    if (!filtered.length) {
-      oppBody.innerHTML = '<tr><td colspan="7" class="muted">No opportunities match the filters.</td></tr>';
-      return;
-    }
+    // Render to all kanban containers (dashboard + opportunities tab)
+    document.querySelectorAll('.opportunities-kanban').forEach(kanban => {
+      kanban.innerHTML = '';
+      if (!filtered.length) {
+        kanban.innerHTML = '<div class="opp-empty-state"><span class="muted">No opportunities match the filters.</span></div>';
+        return;
+      }
 
-    filtered.forEach((opp) => {
-      const stake = Number(opp.kelly_stake ?? 0);
-      const trueProb = Number(opp.true_prob ?? 0);
-      const marketProb = Number(opp.market_prob ?? 0);
-      const edge = Number(opp.edge ?? 0);
-      const tr = document.createElement('tr');
-      const ts = opp.timestamp ? new Date(opp.timestamp * 1000).toLocaleTimeString() : '--';
-      tr.innerHTML = `
-        <td>${opp.matchup}</td>
-        <td>${opp.team}</td>
-        <td>${(trueProb * 100).toFixed(1)}%</td>
-        <td>${(marketProb * 100).toFixed(1)}%</td>
-        <td>${edge.toFixed(2)}%</td>
-        <td>$${stake.toFixed(2)}</td>
-        <td>${ts}</td>
-      `;
-      oppBody.appendChild(tr);
+      filtered.slice(0, 20).forEach((opp) => {
+        const stake = Number(opp.kelly_stake ?? 0);
+        const pppOdds = Number(opp.true_prob ?? 0);
+        const mktOdds = Number(opp.market_prob ?? 0);
+        const edge = Number(opp.edge ?? 0);
+        const ts = opp.timestamp ? new Date(opp.timestamp * 1000).toLocaleTimeString() : '--';
+        const isPositive = edge > 0;
+        
+        const row = document.createElement('div');
+        row.className = `opp-row ${isPositive ? 'positive' : 'negative'}`;
+        row.dataset.matchup = opp.matchup;
+        
+        // Determine pill classes based on values
+        const edgePillClass = edge > 0 ? 'pill-positive' : edge < 0 ? 'pill-negative' : 'pill-neutral';
+        const pppPillClass = pppOdds > mktOdds ? 'pill-positive' : pppOdds < mktOdds ? 'pill-negative' : 'pill-neutral';
+        const mktPillClass = 'pill-neutral';
+        const stakePillClass = stake > 0 ? 'pill-positive' : 'pill-neutral';
+        
+        row.innerHTML = `
+          <div class="opp-cell">
+            <span class="opp-label">Matchup</span>
+            <span class="opp-matchup">${opp.matchup}</span>
+          </div>
+          <div class="opp-cell">
+            <span class="opp-label">Position</span>
+            <span class="opp-position">${opp.team}</span>
+          </div>
+          <div class="opp-cell">
+            <span class="opp-label">PPP Odds</span>
+            <span class="${pppPillClass}">${(pppOdds * 100).toFixed(1)}%</span>
+          </div>
+          <div class="opp-cell">
+            <span class="opp-label">MKT Odds</span>
+            <span class="${mktPillClass}">${(mktOdds * 100).toFixed(1)}%</span>
+          </div>
+          <div class="opp-cell">
+            <span class="opp-label">Edge</span>
+            <span class="${edgePillClass}">${edge >= 0 ? '+' : ''}${edge.toFixed(2)}%</span>
+          </div>
+          <div class="opp-cell">
+            <span class="opp-label">Stake</span>
+            <span class="${stakePillClass}">$${stake.toFixed(2)}</span>
+          </div>
+          <div class="opp-cell">
+            <span class="opp-timestamp">${ts}</span>
+          </div>
+        `;
+        kanban.appendChild(row);
+      });
     });
   }
 
@@ -817,35 +860,58 @@
 
   function addOpportunity(opp) {
     state.oppCount += 1;
+    
+    // Check if this matchup already exists (for flicker effect)
+    const existingIdx = state.opportunities.findIndex(o => o.matchup === opp.matchup && o.team === opp.team);
+    const isUpdate = existingIdx !== -1;
+    
+    if (isUpdate) {
+      // Remove old entry
+      state.opportunities.splice(existingIdx, 1);
+    }
+    
     state.opportunities.unshift(opp);
     if (state.opportunities.length > 200) {
       state.opportunities.pop();
     }
     renderOpportunities();
+    
+    // Add flicker effect for updates
+    if (isUpdate) {
+      const kanban = document.getElementById('opportunities-kanban');
+      const row = kanban?.querySelector(`[data-matchup="${opp.matchup}"]`);
+      if (row) {
+        row.classList.add('flicker-update');
+        setTimeout(() => row.classList.remove('flicker-update'), 600);
+      }
+    }
   }
 
   function addTrade(trade) {
-    const tr = document.createElement('tr');
-    tr.className = `trade-row ${trade.result === 'WIN' ? 'win' : 'loss'}`;
-    const pnlClass = trade.pnl > 0 ? 'pnl-positive' : trade.pnl < 0 ? 'pnl-negative' : '';
-    const badgeClass = trade.result === 'WIN' ? 'badge-win' : trade.result === 'LOSS' ? 'badge-loss' : 'badge-pending';
-    tr.innerHTML = `
-      <td>${new Date(trade.timestamp * 1000).toLocaleTimeString()}</td>
-      <td>${trade.matchup}</td>
-      <td>${trade.team}</td>
-      <td>${(trade.entry_price * 100).toFixed(1)}%</td>
-      <td>$${trade.stake.toFixed(2)}</td>
-      <td>${trade.edge.toFixed(2)}%</td>
-      <td><span class="badge ${badgeClass}">${trade.result}</span></td>
-      <td class="${pnlClass}">${trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}</td>
-    `;
-    if (tradesBody.children.length === 1 && tradesBody.children[0].querySelector('.muted')) {
-      tradesBody.innerHTML = '';
-    }
-    tradesBody.prepend(tr);
-    while (tradesBody.children.length > 50) {
-      tradesBody.removeChild(tradesBody.lastChild);
-    }
+    // Add to all trade tables (dashboard split + trades tab)
+    document.querySelectorAll('#trades-body').forEach(tradesBody => {
+      const tr = document.createElement('tr');
+      tr.className = `trade-row ${trade.result === 'WIN' ? 'win' : 'loss'}`;
+      const pnlClass = trade.pnl > 0 ? 'pnl-positive' : trade.pnl < 0 ? 'pnl-negative' : '';
+      const badgeClass = trade.result === 'WIN' ? 'badge-win' : trade.result === 'LOSS' ? 'badge-loss' : 'badge-pending';
+      tr.innerHTML = `
+        <td>${new Date(trade.timestamp * 1000).toLocaleTimeString()}</td>
+        <td>${trade.matchup}</td>
+        <td>${trade.team}</td>
+        <td>${(trade.entry_price * 100).toFixed(1)}%</td>
+        <td>$${trade.stake.toFixed(2)}</td>
+        <td>${trade.edge.toFixed(2)}%</td>
+        <td><span class="badge ${badgeClass}">${trade.result}</span></td>
+        <td class="${pnlClass}">${trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}</td>
+      `;
+      if (tradesBody.children.length === 1 && tradesBody.children[0].querySelector('.muted')) {
+        tradesBody.innerHTML = '';
+      }
+      tradesBody.prepend(tr);
+      while (tradesBody.children.length > 50) {
+        tradesBody.removeChild(tradesBody.lastChild);
+      }
+    });
   }
 
   // Log stream
