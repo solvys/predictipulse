@@ -113,6 +113,12 @@
       bankroll: {{ stats.bankroll }},
       pnl: {{ stats.total_pnl }},
     },
+    coinbase: {
+      running: false,
+      bankroll: 0,
+      pnl: 0,
+      connected: false,
+    },
     config: {{ config | tojson }},
     stats: {{ stats | tojson }},
     oppCount: 0,
@@ -549,6 +555,96 @@
       uplinkBtn.disabled = false;
     }
   });
+
+  // ==========================================================================
+  // COINBASE UPLINK BUTTON
+  // ==========================================================================
+  const coinbaseUplinkBtn = document.getElementById('coinbase-uplink-btn');
+  const coinbaseUplinkStatusPill = document.getElementById('coinbase-uplink-status-pill');
+  const coinbaseUplinkErrorMsg = document.getElementById('coinbase-uplink-error-msg');
+  const coinbaseBankroll = document.getElementById('coinbase-bankroll');
+  const coinbaseStatus = document.getElementById('coinbase-status');
+  const coinbaseStartBtn = document.getElementById('coinbase-start-btn');
+
+  function setCoinbaseUplinkBtnState(btnState) {
+    if (!coinbaseUplinkBtn) return;
+    coinbaseUplinkBtn.classList.remove('checking', 'connected', 'disconnected');
+    if (btnState) coinbaseUplinkBtn.classList.add(btnState);
+  }
+
+  coinbaseUplinkBtn?.addEventListener('click', async () => {
+    // Set checking state
+    coinbaseUplinkStatusPill.className = 'ticker-tag status-pill checking';
+    coinbaseUplinkStatusPill.textContent = 'Checking...';
+    coinbaseUplinkErrorMsg.textContent = '';
+    setCoinbaseUplinkBtnState('checking');
+    coinbaseUplinkBtn.disabled = true;
+
+    try {
+      const res = await fetch('/api/coinbase/uplink', { method: 'POST' });
+      const data = await res.json();
+
+      if (data.connected) {
+        coinbaseUplinkStatusPill.className = 'ticker-tag status-pill connected';
+        coinbaseUplinkStatusPill.textContent = 'Connected';
+        coinbaseUplinkErrorMsg.textContent = '';
+        setCoinbaseUplinkBtnState('connected');
+        state.coinbase.connected = true;
+        // Add blue border effect for uplink connected
+        document.getElementById('ticker-coinbase').classList.add('uplink-connected');
+        // Update balance if returned
+        if (data.balance !== undefined) {
+          state.coinbase.bankroll = data.balance;
+          coinbaseBankroll.textContent = `$${data.balance.toFixed(2)}`;
+        }
+        // Update status
+        coinbaseStatus.textContent = 'Ready';
+        coinbaseStatus.classList.remove('status-off');
+        coinbaseStatus.classList.add('status-on');
+      } else {
+        coinbaseUplinkStatusPill.className = 'ticker-tag status-pill disconnected';
+        coinbaseUplinkStatusPill.textContent = 'Disconnected';
+        coinbaseUplinkErrorMsg.textContent = data.message || data.error || 'Connection failed';
+        setCoinbaseUplinkBtnState('disconnected');
+        state.coinbase.connected = false;
+        // Remove blue border effect
+        document.getElementById('ticker-coinbase').classList.remove('uplink-connected');
+        // Update status
+        coinbaseStatus.textContent = 'Awaiting API';
+        coinbaseStatus.classList.remove('status-on');
+        coinbaseStatus.classList.add('status-off');
+      }
+    } catch (err) {
+      coinbaseUplinkStatusPill.className = 'ticker-tag status-pill disconnected';
+      coinbaseUplinkStatusPill.textContent = 'Error';
+      coinbaseUplinkErrorMsg.textContent = err.message || 'Network error';
+      setCoinbaseUplinkBtnState('disconnected');
+      state.coinbase.connected = false;
+      // Remove blue border effect
+      document.getElementById('ticker-coinbase')?.classList.remove('uplink-connected');
+    } finally {
+      coinbaseUplinkBtn.disabled = false;
+    }
+  });
+
+  // Fetch initial Coinbase stats
+  async function fetchCoinbaseStats() {
+    try {
+      const res = await fetch('/api/coinbase/account');
+      const data = await res.json();
+      state.coinbase.bankroll = data.bankroll || 0;
+      state.coinbase.pnl = data.total_pnl || 0;
+      state.coinbase.connected = data.connected || false;
+      if (coinbaseBankroll) {
+        coinbaseBankroll.textContent = `$${(data.bankroll || 0).toFixed(2)}`;
+      }
+    } catch (err) {
+      console.warn('Failed to fetch Coinbase stats:', err);
+    }
+  }
+
+  // Initial fetch
+  fetchCoinbaseStats();
 
   // ==========================================================================
   // STATS UPDATER

@@ -17,6 +17,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "trading_start": 0,
     "trading_end": 24,
     "boltodds_api_key": "",  # Add your BoltOdds API key here
+    "coinbase_api_key": "",  # Coinbase Prediction Markets API key (when available)
+    "coinbase_api_secret": "",  # Coinbase Prediction Markets API secret (when available)
 }
 
 
