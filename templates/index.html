@@ -673,18 +673,10 @@
     // Clear summary
     updateBacktestSummary({});
     
-    // Clear chart
-    if (backtestChart) {
-      backtestChart.data.labels = [];
-      backtestChart.data.datasets[0].data = [];
-      backtestChart.update();
-    }
-    document.getElementById('backtest-chart-pnl').textContent = '$0.00';
-    
     // Clear trades table
     const tradesBody = document.getElementById('backtest-trades-body');
     if (tradesBody) {
-      tradesBody.innerHTML = '<tr><td colspan="7" class="muted">No trades yet. Run a backtest to see results.</td></tr>';
+      tradesBody.innerHTML = '<tr><td colspan="8" class="muted">No trades yet. Run a backtest to see results.</td></tr>';
     }
     
     // Clear status
@@ -857,11 +849,6 @@
       // Render individual trades instead of history
       renderBacktestTrades(data.trades || []);
       
-      // Update chart with backtest data (with small delay to ensure DOM is ready)
-      setTimeout(() => {
-        updateBacktestChart(data.trades || [], payload.starting_balance || 1000);
-      }, 100);
-      
       const trades = data.trades?.length || 0;
       const pnl = data.summary?.pnl?.toFixed(2) || '0.00';
       updateBacktestStatus('success', `✓ Backtest complete: ${trades} trades, $${pnl} P&L`);
@@ -885,216 +872,6 @@
     }
   }
 
-  // Backtest chart
-  let backtestChart = null;
-  
-  function initBacktestChart() {
-    const ctx = document.getElementById('backtest-chart');
-    if (!ctx) {
-      console.error('Backtest chart canvas element not found');
-      return;
-    }
-    
-    // Destroy existing chart if it exists
-    if (backtestChart) {
-      backtestChart.destroy();
-      backtestChart = null;
-    }
-    
-    try {
-      backtestChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: [],
-        datasets: [{
-          label: 'Cumulative P&L',
-          data: [],
-          borderColor: '#d4af37',
-          backgroundColor: 'rgba(212, 175, 55, 0.1)',
-          borderWidth: 2,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 0,
-          pointHoverRadius: 4,
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: false
-          },
-          tooltip: {
-            mode: 'index',
-            intersect: false,
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            titleColor: '#d4af37',
-            bodyColor: '#e8e8e8',
-            borderColor: '#d4af37',
-            borderWidth: 1,
-            callbacks: {
-              label: function(context) {
-                return `P&L: ${fmt.currency(context.parsed.y)}`;
-              }
-            }
-          }
-        },
-        scales: {
-          x: {
-            grid: {
-              color: 'rgba(212, 175, 55, 0.1)',
-              borderColor: 'rgba(212, 175, 55, 0.2)'
-            },
-            ticks: {
-              color: '#d4af37',
-              font: {
-                family: 'Advent Pro',
-                style: 'italic'
-              }
-            }
-          },
-          y: {
-            beginAtZero: false,
-            grid: {
-              color: 'rgba(212, 175, 55, 0.1)',
-              borderColor: 'rgba(212, 175, 55, 0.2)'
-            },
-            ticks: {
-              color: '#d4af37',
-              font: {
-                family: 'Advent Pro',
-                style: 'italic'
-              },
-              callback: function(value) {
-                return fmt.currency(value);
-              }
-            }
-          }
-        }
-      }
-    });
-    } catch (error) {
-      console.error('Error initializing backtest chart:', error);
-      backtestChart = null;
-    }
-  }
-  
-  function updateBacktestChart(trades, startingBalance) {
-    // Ensure chart is initialized
-    if (!backtestChart) {
-      console.warn('Chart not initialized, initializing now...');
-      initBacktestChart();
-      if (!backtestChart) {
-        console.error('Failed to initialize backtest chart');
-        return;
-      }
-    }
-    
-    if (!trades || !trades.length) {
-      // Clear chart if no data
-      backtestChart.data.labels = [];
-      backtestChart.data.datasets[0].data = [];
-      backtestChart.options.scales.y.min = undefined;
-      backtestChart.options.scales.y.max = undefined;
-      backtestChart.update();
-      const pnlEl = document.getElementById('backtest-chart-pnl');
-      if (pnlEl) pnlEl.textContent = '$0.00';
-      return;
-    }
-    
-    try {
-      // Sort trades by timestamp
-      const sortedTrades = [...trades].sort((a, b) => {
-        const tsA = a.timestamp || 0;
-        const tsB = b.timestamp || 0;
-        return tsA - tsB;
-      });
-      
-      // Calculate cumulative balance
-      let cumulativeBalance = parseFloat(startingBalance) || 1000;
-      const labels = [];
-      const data = [cumulativeBalance]; // Start with initial balance
-      
-      // Add initial point with start date (if available from form)
-      const startDateInput = document.getElementById('backtest-start');
-      if (startDateInput?.value) {
-        try {
-          const startDate = new Date(startDateInput.value);
-          if (!isNaN(startDate.getTime())) {
-            labels.push(startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-          } else {
-            labels.push('Start');
-          }
-        } catch (e) {
-          console.warn('Error parsing start date:', e);
-          labels.push('Start');
-        }
-      } else {
-        labels.push('Start');
-      }
-      
-      sortedTrades.forEach((trade, index) => {
-        const pnl = parseFloat(trade.pnl || 0);
-        cumulativeBalance += pnl;
-        try {
-          let timestamp;
-          if (trade.timestamp) {
-            // Handle both seconds and milliseconds timestamps
-            timestamp = trade.timestamp < 10000000000 ? trade.timestamp * 1000 : trade.timestamp;
-          } else {
-            // Use index as fallback for ordering
-            timestamp = Date.now() + (index * 1000);
-          }
-          const date = new Date(timestamp);
-          if (!isNaN(date.getTime())) {
-            labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-          } else {
-            labels.push(`Trade ${index + 1}`);
-          }
-        } catch (e) {
-          console.warn('Error parsing trade timestamp:', e, trade);
-          labels.push(`Trade ${index + 1}`);
-        }
-        data.push(cumulativeBalance);
-      });
-      
-      // Calculate min/max for auto-scaling with 10% padding
-      const minValue = Math.min(...data);
-      const maxValue = Math.max(...data);
-      const range = maxValue - minValue;
-      const padding = Math.max(range * 0.1, Math.abs(minValue) * 0.1, 50);
-      
-      // Update chart with auto-scaled Y-axis
-      backtestChart.data.labels = labels;
-      backtestChart.data.datasets[0].data = data;
-      
-      // Set min/max with proper handling
-      if (minValue !== Infinity && maxValue !== -Infinity && !isNaN(minValue) && !isNaN(maxValue)) {
-        backtestChart.options.scales.y.min = minValue - padding;
-        backtestChart.options.scales.y.max = maxValue + padding;
-      } else {
-        // Fallback: use default scaling
-        backtestChart.options.scales.y.min = undefined;
-        backtestChart.options.scales.y.max = undefined;
-      }
-      
-      // Force chart update
-      backtestChart.update('active');
-      
-      // Update chart header value (final balance)
-      const finalBalance = data[data.length - 1];
-      const pnlEl = document.getElementById('backtest-chart-pnl');
-      if (pnlEl) {
-        pnlEl.textContent = fmt.currency(finalBalance);
-      }
-      
-      console.log('Chart updated successfully:', { trades: trades.length, dataPoints: data.length, finalBalance });
-    } catch (error) {
-      console.error('Error updating backtest chart:', error, { trades, startingBalance });
-    }
-  }
-
   // iOS 26 Style Calendar Picker
   let currentPickerInput = null;
   let startCalendarDate = new Date();
@@ -1108,6 +885,11 @@
     const cancelBtn = document.getElementById('calendar-cancel');
     const closeBtn = document.getElementById('calendar-close');
     
+    if (!overlay || !confirmBtn || !cancelBtn || !closeBtn) {
+      console.error('Calendar picker elements not found');
+      return;
+    }
+    
     // Calendar elements
     const startDaysContainer = document.getElementById('start-calendar-days');
     const endDaysContainer = document.getElementById('end-calendar-days');
@@ -1117,6 +899,12 @@
     const startNextBtn = document.getElementById('start-next-month');
     const endPrevBtn = document.getElementById('end-prev-month');
     const endNextBtn = document.getElementById('end-next-month');
+    
+    if (!startDaysContainer || !endDaysContainer || !startMonthYear || !endMonthYear || 
+        !startPrevBtn || !startNextBtn || !endPrevBtn || !endNextBtn) {
+      console.error('Calendar picker sub-elements not found');
+      return;
+    }
 
     // Render calendar grid
     function renderCalendar(container, monthYear, selectedDate, onDateSelect) {
@@ -1263,6 +1051,11 @@
 
     // Open calendar
     function openCalendar(inputEl) {
+      if (!inputEl || !overlay) {
+        console.error('Cannot open calendar: missing input or overlay');
+        return;
+      }
+      
       currentPickerInput = inputEl;
       
       // Find the form-control parent
@@ -1271,6 +1064,11 @@
         // Move overlay to form-control if not already there
         if (overlay.parentElement !== formControl) {
           formControl.appendChild(overlay);
+        }
+      } else {
+        console.warn('Form control not found for date input, appending to body');
+        if (overlay.parentElement !== document.body) {
+          document.body.appendChild(overlay);
         }
       }
       
@@ -1322,7 +1120,9 @@
         selectedEndDate, 
         (date) => { selectedEndDate = date; });
 
+      // Show overlay
       overlay.classList.add('visible');
+      console.log('Calendar opened', { overlay: overlay.classList.contains('visible') });
     }
 
     // Close calendar
@@ -1399,13 +1199,28 @@
     // Attach to date range input
     const dateRangeInput = document.getElementById('backtest-date-range');
     if (dateRangeInput) {
-      dateRangeInput.addEventListener('click', () => openCalendar(dateRangeInput));
+      dateRangeInput.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openCalendar(dateRangeInput);
+      });
+      // Also allow focus to open calendar
+      dateRangeInput.addEventListener('focus', (e) => {
+        e.preventDefault();
+        openCalendar(dateRangeInput);
+      });
+    } else {
+      console.warn('Date range input not found');
     }
     
     // Also attach to old date inputs for backward compatibility
     document.querySelectorAll('.date-picker-input').forEach(input => {
       if (input.id !== 'backtest-date-range') {
-        input.addEventListener('click', () => openCalendar(input));
+        input.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openCalendar(input);
+        });
       }
     });
   }
@@ -1464,9 +1279,6 @@
       const payload = getBacktestPayload();
       runBacktest(payload);
     });
-
-    // Initialize chart
-    initBacktestChart();
 
     fetchPerformance('paper');
   }
