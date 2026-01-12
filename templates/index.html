@@ -48,7 +48,7 @@
 <div id="calendar-picker-overlay" class="calendar-overlay">
   <div class="calendar-picker">
     <div class="calendar-header">
-      <button class="calendar-close" id="calendar-close">×</button>
+      <button type="button" class="calendar-close" id="calendar-close">×</button>
       <h3 class="calendar-title">Select Date Range</h3>
     </div>
     <div class="calendar-body">
@@ -56,9 +56,9 @@
       <div class="calendar-date-section">
         <div class="calendar-date-label">Start Date</div>
         <div class="calendar-nav">
-          <button class="calendar-nav-btn" id="start-prev-month">‹</button>
+          <button type="button" class="calendar-nav-btn" id="start-prev-month">‹</button>
           <div class="calendar-month-year" id="start-month-year">January 2025</div>
-          <button class="calendar-nav-btn" id="start-next-month">›</button>
+          <button type="button" class="calendar-nav-btn" id="start-next-month">›</button>
         </div>
         <div class="calendar-grid" id="start-calendar-grid">
           <div class="calendar-weekdays">
@@ -78,9 +78,9 @@
       <div class="calendar-date-section">
         <div class="calendar-date-label">End Date</div>
         <div class="calendar-nav">
-          <button class="calendar-nav-btn" id="end-prev-month">‹</button>
+          <button type="button" class="calendar-nav-btn" id="end-prev-month">‹</button>
           <div class="calendar-month-year" id="end-month-year">January 2025</div>
-          <button class="calendar-nav-btn" id="end-next-month">›</button>
+          <button type="button" class="calendar-nav-btn" id="end-next-month">›</button>
         </div>
         <div class="calendar-grid" id="end-calendar-grid">
           <div class="calendar-weekdays">
@@ -1135,7 +1135,9 @@
     }
 
     // Navigation handlers
-    startPrevBtn.addEventListener('click', () => {
+    startPrevBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       const newDate = new Date(startCalendarDate);
       newDate.setMonth(newDate.getMonth() - 1);
       const oneYearAgo = new Date();
@@ -1152,7 +1154,9 @@
       }
     });
 
-    startNextBtn.addEventListener('click', () => {
+    startNextBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       const newDate = new Date(startCalendarDate);
       newDate.setMonth(newDate.getMonth() + 1);
       const today = new Date();
@@ -1168,7 +1172,9 @@
       }
     });
 
-    endPrevBtn.addEventListener('click', () => {
+    endPrevBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       const newDate = new Date(endCalendarDate);
       newDate.setMonth(newDate.getMonth() - 1);
       const oneYearAgo = new Date();
@@ -1185,7 +1191,9 @@
       }
     });
 
-    endNextBtn.addEventListener('click', () => {
+    endNextBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       const newDate = new Date(endCalendarDate);
       newDate.setMonth(newDate.getMonth() + 1);
       const today = new Date();
